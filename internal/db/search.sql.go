@@ -7,135 +7,250 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
-const searchArtifacts = `-- name: SearchArtifacts :many
-SELECT a.id, a.source_file_id, a.conversation_id, a.path, a.kind, a.text, a.sha256, a.created_at
-FROM artifact_fts(?) f
+const searchArtifactHits = `-- name: SearchArtifactHits :many
+SELECT
+    'artifact' AS result_type,
+    bm25(artifact_fts) AS score,
+    coalesce(p.name, p.slug, '') AS project_name,
+    coalesce(p.canonical_path, p.git_root, '') AS project_dir,
+    coalesce(a.conversation_id, 0) AS conversation_id,
+    '' AS conversation_title,
+    a.id AS entity_id,
+    a.kind AS role,
+    coalesce(a.created_at, '') AS created_at,
+    coalesce(substr(a.path || ' ' || coalesce(a.text, ''), 1, 400), '') AS snippet
+FROM artifact_fts(?1) f
 JOIN artifacts a ON a.id = f.rowid
-ORDER BY rank
-LIMIT ?
+LEFT JOIN conversations c ON c.id = a.conversation_id
+LEFT JOIN projects p ON p.id = c.project_id
+WHERE (?2 = 0 OR c.project_id = ?3)
+  AND (?4 = 0 OR coalesce(a.created_at, '') >= ?5)
+ORDER BY score
+LIMIT ?6
 `
 
-type SearchArtifactsParams struct {
-	ArtifactFts interface{} `json:"artifact_fts"`
-	Limit       int64       `json:"limit"`
+type SearchArtifactHitsParams struct {
+	FtsQuery      interface{}    `json:"fts_query"`
+	EnableProject interface{}    `json:"enable_project"`
+	ProjectID     sql.NullInt64  `json:"project_id"`
+	EnableSince   interface{}    `json:"enable_since"`
+	Since         sql.NullString `json:"since"`
+	ResultLimit   int64          `json:"result_limit"`
 }
 
-func (q *Queries) SearchArtifacts(ctx context.Context, arg SearchArtifactsParams) ([]Artifact, error) {
-	rows, err := q.db.QueryContext(ctx, searchArtifacts, arg.ArtifactFts, arg.Limit)
+type SearchArtifactHitsRow struct {
+	ResultType        string      `json:"result_type"`
+	Score             float64     `json:"score"`
+	ProjectName       string      `json:"project_name"`
+	ProjectDir        string      `json:"project_dir"`
+	ConversationID    int64       `json:"conversation_id"`
+	ConversationTitle string      `json:"conversation_title"`
+	EntityID          int64       `json:"entity_id"`
+	Role              string      `json:"role"`
+	CreatedAt         string      `json:"created_at"`
+	Snippet           interface{} `json:"snippet"`
+}
+
+func (q *Queries) SearchArtifactHits(ctx context.Context, arg SearchArtifactHitsParams) ([]SearchArtifactHitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchArtifactHits,
+		arg.FtsQuery,
+		arg.EnableProject,
+		arg.ProjectID,
+		arg.EnableSince,
+		arg.Since,
+		arg.ResultLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Artifact{}
+	items := []SearchArtifactHitsRow{}
 	for rows.Next() {
-		var i Artifact
+		var i SearchArtifactHitsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.SourceFileID,
+			&i.ResultType,
+			&i.Score,
+			&i.ProjectName,
+			&i.ProjectDir,
 			&i.ConversationID,
-			&i.Path,
-			&i.Kind,
-			&i.Text,
-			&i.Sha256,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchMemoryItems = `-- name: SearchMemoryItems :many
-SELECT mi.id, mi.project_id, mi.conversation_id, mi.message_id, mi.kind, mi.title, mi.body, mi.confidence, mi.importance, mi.happened_at, mi.created_at, mi.evidence_json
-FROM memory_fts(?) f
-JOIN memory_items mi ON mi.id = f.rowid
-ORDER BY rank
-LIMIT ?
-`
-
-type SearchMemoryItemsParams struct {
-	MemoryFts interface{} `json:"memory_fts"`
-	Limit     int64       `json:"limit"`
-}
-
-func (q *Queries) SearchMemoryItems(ctx context.Context, arg SearchMemoryItemsParams) ([]MemoryItem, error) {
-	rows, err := q.db.QueryContext(ctx, searchMemoryItems, arg.MemoryFts, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []MemoryItem{}
-	for rows.Next() {
-		var i MemoryItem
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.ConversationID,
-			&i.MessageID,
-			&i.Kind,
-			&i.Title,
-			&i.Body,
-			&i.Confidence,
-			&i.Importance,
-			&i.HappenedAt,
-			&i.CreatedAt,
-			&i.EvidenceJson,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchMessages = `-- name: SearchMessages :many
-SELECT m.id, m.conversation_id, m.source_file_id, m.role, m.seq, m.created_at, m.text, m.raw_json, m.raw_line, m.content_hash
-FROM message_fts(?) f
-JOIN messages m ON m.id = f.rowid
-ORDER BY rank
-LIMIT ?
-`
-
-type SearchMessagesParams struct {
-	MessageFts interface{} `json:"message_fts"`
-	Limit      int64       `json:"limit"`
-}
-
-func (q *Queries) SearchMessages(ctx context.Context, arg SearchMessagesParams) ([]Message, error) {
-	rows, err := q.db.QueryContext(ctx, searchMessages, arg.MessageFts, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Message{}
-	for rows.Next() {
-		var i Message
-		if err := rows.Scan(
-			&i.ID,
-			&i.ConversationID,
-			&i.SourceFileID,
+			&i.ConversationTitle,
+			&i.EntityID,
 			&i.Role,
-			&i.Seq,
 			&i.CreatedAt,
-			&i.Text,
-			&i.RawJson,
-			&i.RawLine,
-			&i.ContentHash,
+			&i.Snippet,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchMemoryHits = `-- name: SearchMemoryHits :many
+SELECT
+    'memory' AS result_type,
+    bm25(memory_fts) AS score,
+    coalesce(p.name, p.slug, '') AS project_name,
+    coalesce(p.canonical_path, p.git_root, '') AS project_dir,
+    coalesce(mi.conversation_id, 0) AS conversation_id,
+    '' AS conversation_title,
+    mi.id AS entity_id,
+    mi.kind AS role,
+    coalesce(mi.happened_at, mi.created_at, '') AS created_at,
+    coalesce(substr(mi.title || ' ' || mi.body, 1, 400), '') AS snippet
+FROM memory_fts(?1) f
+JOIN memory_items mi ON mi.id = f.rowid
+LEFT JOIN projects p ON p.id = mi.project_id
+WHERE (?2 = 0 OR mi.project_id = ?3)
+  AND (?4 = 0 OR coalesce(mi.happened_at, mi.created_at, '') >= ?5)
+ORDER BY score
+LIMIT ?6
+`
+
+type SearchMemoryHitsParams struct {
+	FtsQuery      interface{}    `json:"fts_query"`
+	EnableProject interface{}    `json:"enable_project"`
+	ProjectID     sql.NullInt64  `json:"project_id"`
+	EnableSince   interface{}    `json:"enable_since"`
+	Since         sql.NullString `json:"since"`
+	ResultLimit   int64          `json:"result_limit"`
+}
+
+type SearchMemoryHitsRow struct {
+	ResultType        string      `json:"result_type"`
+	Score             float64     `json:"score"`
+	ProjectName       string      `json:"project_name"`
+	ProjectDir        string      `json:"project_dir"`
+	ConversationID    int64       `json:"conversation_id"`
+	ConversationTitle string      `json:"conversation_title"`
+	EntityID          int64       `json:"entity_id"`
+	Role              string      `json:"role"`
+	CreatedAt         string      `json:"created_at"`
+	Snippet           interface{} `json:"snippet"`
+}
+
+func (q *Queries) SearchMemoryHits(ctx context.Context, arg SearchMemoryHitsParams) ([]SearchMemoryHitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchMemoryHits,
+		arg.FtsQuery,
+		arg.EnableProject,
+		arg.ProjectID,
+		arg.EnableSince,
+		arg.Since,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchMemoryHitsRow{}
+	for rows.Next() {
+		var i SearchMemoryHitsRow
+		if err := rows.Scan(
+			&i.ResultType,
+			&i.Score,
+			&i.ProjectName,
+			&i.ProjectDir,
+			&i.ConversationID,
+			&i.ConversationTitle,
+			&i.EntityID,
+			&i.Role,
+			&i.CreatedAt,
+			&i.Snippet,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchMessageHits = `-- name: SearchMessageHits :many
+SELECT
+    'message' AS result_type,
+    bm25(message_fts) AS score,
+    coalesce(p.name, p.slug, '') AS project_name,
+    coalesce(p.canonical_path, p.git_root, '') AS project_dir,
+    c.id AS conversation_id,
+    coalesce(c.title, '') AS conversation_title,
+    m.id AS entity_id,
+    m.role AS role,
+    coalesce(m.created_at, c.started_at, sf.indexed_at, '') AS created_at,
+    coalesce(substr(m.text, 1, 400), '') AS snippet
+FROM message_fts(?1) f
+JOIN messages m ON m.id = f.rowid
+JOIN conversations c ON c.id = m.conversation_id
+LEFT JOIN projects p ON p.id = c.project_id
+LEFT JOIN source_files sf ON sf.id = m.source_file_id
+WHERE (?2 = 0 OR c.project_id = ?3)
+  AND (?4 = 0 OR coalesce(m.created_at, c.started_at, sf.indexed_at, '') >= ?5)
+ORDER BY score
+LIMIT ?6
+`
+
+type SearchMessageHitsParams struct {
+	FtsQuery      interface{}    `json:"fts_query"`
+	EnableProject interface{}    `json:"enable_project"`
+	ProjectID     sql.NullInt64  `json:"project_id"`
+	EnableSince   interface{}    `json:"enable_since"`
+	Since         sql.NullString `json:"since"`
+	ResultLimit   int64          `json:"result_limit"`
+}
+
+type SearchMessageHitsRow struct {
+	ResultType        string      `json:"result_type"`
+	Score             float64     `json:"score"`
+	ProjectName       string      `json:"project_name"`
+	ProjectDir        string      `json:"project_dir"`
+	ConversationID    int64       `json:"conversation_id"`
+	ConversationTitle string      `json:"conversation_title"`
+	EntityID          int64       `json:"entity_id"`
+	Role              string      `json:"role"`
+	CreatedAt         string      `json:"created_at"`
+	Snippet           interface{} `json:"snippet"`
+}
+
+func (q *Queries) SearchMessageHits(ctx context.Context, arg SearchMessageHitsParams) ([]SearchMessageHitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchMessageHits,
+		arg.FtsQuery,
+		arg.EnableProject,
+		arg.ProjectID,
+		arg.EnableSince,
+		arg.Since,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchMessageHitsRow{}
+	for rows.Next() {
+		var i SearchMessageHitsRow
+		if err := rows.Scan(
+			&i.ResultType,
+			&i.Score,
+			&i.ProjectName,
+			&i.ProjectDir,
+			&i.ConversationID,
+			&i.ConversationTitle,
+			&i.EntityID,
+			&i.Role,
+			&i.CreatedAt,
+			&i.Snippet,
 		); err != nil {
 			return nil, err
 		}

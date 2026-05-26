@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const createArtifact = `-- name: CreateArtifact :one
@@ -484,6 +485,131 @@ func (q *Queries) ListMessageToolCalls(ctx context.Context, messageID int64) ([]
 			&i.Status,
 			&i.OutputArtifactID,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRelatedFilesForMessages = `-- name: ListRelatedFilesForMessages :many
+SELECT
+    f.path,
+    coalesce(p.name, p.slug, '') AS project_name,
+    count(*) AS mentions
+FROM file_mentions fm
+JOIN files f ON f.id = fm.file_id
+LEFT JOIN projects p ON p.id = f.project_id
+WHERE fm.message_id IN (/*SLICE:message_ids*/?)
+GROUP BY f.id
+ORDER BY mentions DESC, f.path
+LIMIT ?
+`
+
+type ListRelatedFilesForMessagesParams struct {
+	MessageIds []sql.NullInt64 `json:"message_ids"`
+	Limit      int64           `json:"limit"`
+}
+
+type ListRelatedFilesForMessagesRow struct {
+	Path        string `json:"path"`
+	ProjectName string `json:"project_name"`
+	Mentions    int64  `json:"mentions"`
+}
+
+func (q *Queries) ListRelatedFilesForMessages(ctx context.Context, arg ListRelatedFilesForMessagesParams) ([]ListRelatedFilesForMessagesRow, error) {
+	query := listRelatedFilesForMessages
+	var queryParams []interface{}
+	if len(arg.MessageIds) > 0 {
+		for _, v := range arg.MessageIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:message_ids*/?", strings.Repeat(",?", len(arg.MessageIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:message_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRelatedFilesForMessagesRow{}
+	for rows.Next() {
+		var i ListRelatedFilesForMessagesRow
+		if err := rows.Scan(&i.Path, &i.ProjectName, &i.Mentions); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listToolCallsForMessages = `-- name: ListToolCallsForMessages :many
+SELECT
+    tc.id,
+    tc.tool_name,
+    coalesce(tc.status, '') AS status,
+    coalesce(tc.created_at, '') AS created_at,
+    tc.message_id
+FROM tool_calls tc
+WHERE tc.message_id IN (/*SLICE:message_ids*/?)
+ORDER BY coalesce(tc.created_at, '') DESC, tc.id DESC
+LIMIT ?
+`
+
+type ListToolCallsForMessagesParams struct {
+	MessageIds []int64 `json:"message_ids"`
+	Limit      int64   `json:"limit"`
+}
+
+type ListToolCallsForMessagesRow struct {
+	ID        int64  `json:"id"`
+	ToolName  string `json:"tool_name"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"created_at"`
+	MessageID int64  `json:"message_id"`
+}
+
+func (q *Queries) ListToolCallsForMessages(ctx context.Context, arg ListToolCallsForMessagesParams) ([]ListToolCallsForMessagesRow, error) {
+	query := listToolCallsForMessages
+	var queryParams []interface{}
+	if len(arg.MessageIds) > 0 {
+		for _, v := range arg.MessageIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:message_ids*/?", strings.Repeat(",?", len(arg.MessageIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:message_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListToolCallsForMessagesRow{}
+	for rows.Next() {
+		var i ListToolCallsForMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ToolName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.MessageID,
 		); err != nil {
 			return nil, err
 		}

@@ -372,6 +372,10 @@ github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
+github.com/ijt/go-anytime v1.9.2 h1:DmYgVwUiFPNR+n6c1T5P070tlGATRZG4aYNJs6XDUfU=
+github.com/ijt/go-anytime v1.9.2/go.mod h1:egBT6FhVjNlXNHUN2wTPi6ILCNKXeeXFy04pWJjw/LI=
+github.com/ijt/goparsify v0.0.0-20221203142333-3a5276334b8d h1:LFOmpWrSbtolg0YqYC9hQjj5WSLtRGb6aZ3JAugLfgg=
+github.com/ijt/goparsify v0.0.0-20221203142333-3a5276334b8d/go.mod h1:112TOyA+aruNSUBlyBWlKBdLVYTdhjiO2CKD0j/URSU=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=

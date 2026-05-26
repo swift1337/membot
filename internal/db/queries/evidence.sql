@@ -79,3 +79,28 @@ ORDER BY id;
 -- name: DeletePatch :exec
 DELETE FROM patches
 WHERE id = ?;
+
+-- name: ListRelatedFilesForMessages :many
+SELECT
+    f.path,
+    coalesce(p.name, p.slug, '') AS project_name,
+    count(*) AS mentions
+FROM file_mentions fm
+JOIN files f ON f.id = fm.file_id
+LEFT JOIN projects p ON p.id = f.project_id
+WHERE fm.message_id IN (sqlc.slice(message_ids))
+GROUP BY f.id
+ORDER BY mentions DESC, f.path
+LIMIT ?;
+
+-- name: ListToolCallsForMessages :many
+SELECT
+    tc.id,
+    tc.tool_name,
+    coalesce(tc.status, '') AS status,
+    coalesce(tc.created_at, '') AS created_at,
+    tc.message_id
+FROM tool_calls tc
+WHERE tc.message_id IN (sqlc.slice(message_ids))
+ORDER BY coalesce(tc.created_at, '') DESC, tc.id DESC
+LIMIT ?;

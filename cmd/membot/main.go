@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	cursorindexer "github.com/swift1337/membot/internal/indexer/cursor"
+	"github.com/swift1337/membot/internal/query"
 	"github.com/swift1337/membot/internal/store"
 )
 
@@ -31,16 +33,7 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = db.Close()
-			}()
-
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "membot database ready: %s\n", db.Path())
-			return err
+			return cmd.Help()
 		},
 	}
 
@@ -63,6 +56,7 @@ func newRootCommand() *cobra.Command {
 		},
 	})
 	cmd.AddCommand(newIndexCommand(openStore))
+	cmd.AddCommand(newQueryCommand(openStore))
 
 	return cmd
 }
@@ -123,6 +117,78 @@ func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 				"source_file_count":  stats.SourceFileCount,
 				"last_indexed_at":    sqliteText(stats.LastIndexedAt),
 			})
+		},
+	})
+
+	return cmd
+}
+
+func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
+	var (
+		projectFlag string
+		sinceFlag   string
+		textFlag    bool
+		limitFlag   int
+	)
+
+	cmd := &cobra.Command{
+		Use:     "query [query string]",
+		Aliases: []string{"q"},
+		Short:   "Query indexed memory as JSON",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+
+			db, err := openStore(cmd)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = db.Close()
+			}()
+
+			response, err := query.Search(cmd.Context(), db, query.Options{
+				Query:   strings.Join(args, " "),
+				Project: projectFlag,
+				Since:   sinceFlag,
+				Limit:   limitFlag,
+			})
+			if err != nil {
+				return err
+			}
+
+			if textFlag {
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), query.RenderText(response))
+				return err
+			}
+			return writeJSON(cmd, response)
+		},
+	}
+
+	cmd.Flags().StringVarP(&projectFlag, "project", "p", "", "Filter by project name, slug, or path")
+	cmd.Flags().StringVar(&sinceFlag, "since", "", "Only include results since this time (e.g. yesterday, 3h, 1 week)")
+	cmd.Flags().BoolVar(&textFlag, "text", false, "Render results as formatted text instead of JSON")
+	cmd.Flags().IntVar(&limitFlag, "limit", 20, "Maximum number of results")
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "projects",
+		Short: "List indexed projects as JSON",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := openStore(cmd)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = db.Close()
+			}()
+
+			projects, err := db.Queries().ListProjectSummaries(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			return writeJSON(cmd, projects)
 		},
 	})
 

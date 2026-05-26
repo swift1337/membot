@@ -38,3 +38,43 @@ func (q *Queries) GetIndexStats(ctx context.Context) (GetIndexStatsRow, error) {
 	)
 	return i, err
 }
+
+const listProjectSummaries = `-- name: ListProjectSummaries :many
+SELECT
+    coalesce(p.name, p.slug) AS project_name,
+    coalesce(p.canonical_path, p.git_root, '') AS project_dir,
+    count(c.id) AS chats
+FROM projects p
+LEFT JOIN conversations c ON c.project_id = p.id
+GROUP BY p.id
+ORDER BY project_name
+`
+
+type ListProjectSummariesRow struct {
+	ProjectName string `json:"project_name"`
+	ProjectDir  string `json:"project_dir"`
+	Chats       int64  `json:"chats"`
+}
+
+func (q *Queries) ListProjectSummaries(ctx context.Context) ([]ListProjectSummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSummaries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProjectSummariesRow{}
+	for rows.Next() {
+		var i ListProjectSummariesRow
+		if err := rows.Scan(&i.ProjectName, &i.ProjectDir, &i.Chats); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
