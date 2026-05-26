@@ -33,10 +33,12 @@ func newRootCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer db.Close()
+			defer func() {
+				_ = db.Close()
+			}()
 
-			fmt.Fprintf(cmd.OutOrStdout(), "membot database ready: %s\n", db.Path())
-			return nil
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "membot database ready: %s\n", db.Path())
+			return err
 		},
 	}
 
@@ -50,10 +52,12 @@ func newRootCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer db.Close()
+			defer func() {
+				_ = db.Close()
+			}()
 
-			fmt.Fprintf(cmd.OutOrStdout(), "membot database ready: %s\n", db.Path())
-			return nil
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "membot database ready: %s\n", db.Path())
+			return err
 		},
 	})
 

@@ -1,7 +1,7 @@
 BINARY := membot
 BIN_DIR := bin
 
-.PHONY: build install codegen clean
+.PHONY: build install codegen lint lint-fix clean
 
 build:
 	@mkdir -p $(BIN_DIR)
@@ -12,6 +12,12 @@ install:
 
 codegen:
 	go tool sqlc generate
+
+lint:
+	go tool golangci-lint run
+
+lint-fix:
+	go tool golangci-lint run --fix
 
 clean:
 	rm -rf $(BIN_DIR)

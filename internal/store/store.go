@@ -64,11 +64,11 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		path:    expanded,
 	}
 	if err := store.configure(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	if err := store.migrate(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
@@ -167,7 +167,9 @@ func (s *Store) applyMigration(ctx context.Context, version string) error {
 	if err != nil {
 		return fmt.Errorf("begin migration %s: %w", version, err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	if _, err := tx.ExecContext(ctx, string(script)); err != nil {
 		return fmt.Errorf("apply migration %s: %w", version, err)
