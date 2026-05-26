@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -23,8 +24,10 @@ import (
 
 const (
 	sourceKind    = "cursor"
-	parserVersion = "cursor-jsonl-v1"
+	parserVersion = "cursor-jsonl-v2"
 )
+
+var timestampTagPattern = regexp.MustCompile(`(?s)<timestamp>\s*([^<]+?)\s*</timestamp>`)
 
 type Options struct {
 	Root string
@@ -53,13 +56,19 @@ type transcriptFile struct {
 }
 
 type transcriptLine struct {
-	Role    string          `json:"role"`
-	Message transcriptMsg   `json:"message"`
-	Raw     json.RawMessage `json:"-"`
+	Role           string          `json:"role"`
+	Timestamp      string          `json:"timestamp"`
+	CreatedAt      string          `json:"created_at"`
+	CreatedAtCamel string          `json:"createdAt"`
+	Message        transcriptMsg   `json:"message"`
+	Raw            json.RawMessage `json:"-"`
 }
 
 type transcriptMsg struct {
-	Content json.RawMessage `json:"content"`
+	Content        json.RawMessage `json:"content"`
+	Timestamp      string          `json:"timestamp"`
+	CreatedAt      string          `json:"created_at"`
+	CreatedAtCamel string          `json:"createdAt"`
 }
 
 type contentBlock struct {
@@ -278,6 +287,8 @@ func indexTranscript(
 	if err != nil {
 		return false, 0, 0, err
 	}
+	fallbackCreatedAt := info.ModTime().UTC().Format(time.RFC3339)
+	startedAt, endedAt := conversationTimes(lines, fallbackCreatedAt)
 
 	conversation, err := q.UpsertConversation(ctx, db.UpsertConversationParams{
 		SourceID:         sourceID,
@@ -286,6 +297,8 @@ func indexTranscript(
 		ExternalID:       conversationID,
 		ParentExternalID: parentExternalID(transcript.Path),
 		Title:            titleFromLines(lines),
+		StartedAt:        sql.NullString{String: startedAt, Valid: startedAt != ""},
+		EndedAt:          sql.NullString{String: endedAt, Valid: endedAt != ""},
 		MessageCount:     int64(len(lines)),
 		IsSubagent:       boolInt64(strings.Contains(transcript.Path, string(filepath.Separator)+"subagents"+string(filepath.Separator))),
 		RawPath:          transcript.Path,
@@ -312,6 +325,7 @@ func indexTranscript(
 			SourceFileID:   sql.NullInt64{Int64: sourceFile.ID, Valid: true},
 			Role:           line.Role,
 			Seq:            int64(seq + 1),
+			CreatedAt:      sql.NullString{String: lineCreatedAt(line, fallbackCreatedAt), Valid: true},
 			Text:           sql.NullString{String: line.Text(), Valid: line.Text() != ""},
 			RawJson:        string(line.Raw),
 			RawLine:        sql.NullInt64{Int64: line.LineNumber, Valid: true},
@@ -345,6 +359,7 @@ func indexTranscript(
 type parsedLine struct {
 	LineNumber int64
 	Role       string
+	CreatedAt  string
 	Raw        []byte
 	Blocks     []contentBlock
 }
@@ -424,9 +439,140 @@ func parseLine(raw []byte, lineNumber int64) (parsedLine, error) {
 	return parsedLine{
 		LineNumber: lineNumber,
 		Role:       role,
+		CreatedAt:  createdAtFromLine(line, blocks),
 		Raw:        line.Raw,
 		Blocks:     blocks,
 	}, nil
+}
+
+func createdAtFromLine(line transcriptLine, blocks []contentBlock) string {
+	candidates := []string{
+		line.Timestamp,
+		line.CreatedAt,
+		line.CreatedAtCamel,
+		line.Message.Timestamp,
+		line.Message.CreatedAt,
+		line.Message.CreatedAtCamel,
+	}
+	for _, block := range blocks {
+		if match := timestampTagPattern.FindStringSubmatch(block.Text); len(match) == 2 {
+			candidates = append(candidates, match[1])
+		}
+	}
+	for _, candidate := range candidates {
+		if formatted, ok := parseCursorTimestamp(candidate); ok {
+			return formatted
+		}
+	}
+	return ""
+}
+
+func parseCursorTimestamp(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsed.UTC().Format(time.RFC3339), true
+	}
+
+	base, zoneText, ok := splitCursorTimestamp(value)
+	if !ok {
+		return "", false
+	}
+	offsetSeconds, ok := parseUTCOffset(zoneText)
+	if !ok {
+		return "", false
+	}
+
+	location := time.FixedZone(zoneText, offsetSeconds)
+	for _, layout := range []string{
+		"Monday, Jan 2, 2006, 3:04 PM",
+		"Monday, January 2, 2006, 3:04 PM",
+		"Jan 2, 2006, 3:04 PM",
+		"January 2, 2006, 3:04 PM",
+	} {
+		parsed, err := time.ParseInLocation(layout, base, location)
+		if err == nil {
+			return parsed.UTC().Format(time.RFC3339), true
+		}
+	}
+	return "", false
+}
+
+func splitCursorTimestamp(value string) (string, string, bool) {
+	const marker = " (UTC"
+	idx := strings.LastIndex(value, marker)
+	if idx == -1 || !strings.HasSuffix(value, ")") {
+		return "", "", false
+	}
+	base := strings.TrimSpace(value[:idx])
+	zoneText := strings.TrimSuffix(strings.TrimPrefix(value[idx+2:], "UTC"), ")")
+	if base == "" || zoneText == "" {
+		return "", "", false
+	}
+	return base, zoneText, true
+}
+
+func parseUTCOffset(value string) (int, bool) {
+	if len(value) < 2 {
+		return 0, false
+	}
+	sign := 1
+	switch value[0] {
+	case '+':
+	case '-':
+		sign = -1
+	default:
+		return 0, false
+	}
+
+	parts := strings.Split(strings.TrimPrefix(strings.TrimPrefix(value, "+"), "-"), ":")
+	hours, err := time.ParseDuration(parts[0] + "h")
+	if err != nil {
+		return 0, false
+	}
+	offset := int(hours.Seconds())
+	if len(parts) == 2 {
+		minutes, err := time.ParseDuration(parts[1] + "m")
+		if err != nil {
+			return 0, false
+		}
+		offset += int(minutes.Seconds())
+	}
+	if len(parts) > 2 {
+		return 0, false
+	}
+	return sign * offset, true
+}
+
+func conversationTimes(lines []parsedLine, fallback string) (string, string) {
+	startedAt := ""
+	endedAt := ""
+	for _, line := range lines {
+		createdAt := lineCreatedAt(line, fallback)
+		if createdAt == "" {
+			continue
+		}
+		if startedAt == "" {
+			startedAt = createdAt
+		}
+		endedAt = createdAt
+	}
+	if startedAt == "" {
+		startedAt = fallback
+	}
+	if endedAt == "" {
+		endedAt = startedAt
+	}
+	return startedAt, endedAt
+}
+
+func lineCreatedAt(line parsedLine, fallback string) string {
+	if line.CreatedAt != "" {
+		return line.CreatedAt
+	}
+	return fallback
 }
 
 func parseContent(raw json.RawMessage) ([]contentBlock, error) {

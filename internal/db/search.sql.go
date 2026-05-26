@@ -189,7 +189,7 @@ SELECT
     coalesce(c.title, '') AS conversation_title,
     m.id AS entity_id,
     m.role AS role,
-    coalesce(m.created_at, c.started_at, sf.indexed_at, '') AS created_at,
+    coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') AS created_at,
     coalesce(substr(m.text, 1, 400), '') AS snippet
 FROM message_fts(?1) f
 JOIN messages m ON m.id = f.rowid
@@ -197,7 +197,7 @@ JOIN conversations c ON c.id = m.conversation_id
 LEFT JOIN projects p ON p.id = c.project_id
 LEFT JOIN source_files sf ON sf.id = m.source_file_id
 WHERE (?2 = 0 OR c.project_id = ?3)
-  AND (?4 = 0 OR coalesce(m.created_at, c.started_at, sf.indexed_at, '') >= ?5)
+  AND (?4 = 0 OR coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') >= ?5)
 ORDER BY score
 LIMIT ?6
 `

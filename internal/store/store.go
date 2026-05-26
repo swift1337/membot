@@ -95,10 +95,16 @@ func (s *Store) Repository() *generateddb.Repository {
 	return s.repo
 }
 
+func RemoveDatabaseFiles(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove database file %s: %w", path, err)
+	}
+	return nil
+}
+
 func (s *Store) configure(ctx context.Context) error {
 	pragmas := []string{
 		"PRAGMA foreign_keys = ON",
-		"PRAGMA journal_mode = WAL",
 		"PRAGMA busy_timeout = 5000",
 	}
 	for _, pragma := range pragmas {
