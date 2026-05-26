@@ -54,6 +54,21 @@ INSERT INTO messages (
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
+-- name: UpsertMessage :one
+INSERT INTO messages (
+    conversation_id, source_file_id, role, seq, created_at, text, raw_json, raw_line, content_hash
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(source_file_id, raw_line) DO UPDATE SET
+    conversation_id = excluded.conversation_id,
+    role = excluded.role,
+    seq = excluded.seq,
+    created_at = excluded.created_at,
+    text = excluded.text,
+    raw_json = excluded.raw_json,
+    content_hash = excluded.content_hash
+RETURNING *;
+
 -- name: GetMessage :one
 SELECT * FROM messages
 WHERE id = ?;
@@ -74,6 +89,15 @@ WHERE id = ?;
 -- name: CreateMessageBlock :one
 INSERT INTO message_blocks (message_id, seq, type, text, raw_json)
 VALUES (?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: UpsertMessageBlock :one
+INSERT INTO message_blocks (message_id, seq, type, text, raw_json)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(message_id, seq) DO UPDATE SET
+    type = excluded.type,
+    text = excluded.text,
+    raw_json = excluded.raw_json
 RETURNING *;
 
 -- name: ListMessageBlocks :many

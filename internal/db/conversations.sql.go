@@ -519,3 +519,97 @@ func (q *Queries) UpsertConversation(ctx context.Context, arg UpsertConversation
 	)
 	return i, err
 }
+
+const upsertMessage = `-- name: UpsertMessage :one
+INSERT INTO messages (
+    conversation_id, source_file_id, role, seq, created_at, text, raw_json, raw_line, content_hash
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(source_file_id, raw_line) DO UPDATE SET
+    conversation_id = excluded.conversation_id,
+    role = excluded.role,
+    seq = excluded.seq,
+    created_at = excluded.created_at,
+    text = excluded.text,
+    raw_json = excluded.raw_json,
+    content_hash = excluded.content_hash
+RETURNING id, conversation_id, source_file_id, role, seq, created_at, text, raw_json, raw_line, content_hash
+`
+
+type UpsertMessageParams struct {
+	ConversationID int64          `json:"conversation_id"`
+	SourceFileID   sql.NullInt64  `json:"source_file_id"`
+	Role           string         `json:"role"`
+	Seq            int64          `json:"seq"`
+	CreatedAt      sql.NullString `json:"created_at"`
+	Text           sql.NullString `json:"text"`
+	RawJson        string         `json:"raw_json"`
+	RawLine        sql.NullInt64  `json:"raw_line"`
+	ContentHash    string         `json:"content_hash"`
+}
+
+func (q *Queries) UpsertMessage(ctx context.Context, arg UpsertMessageParams) (Message, error) {
+	row := q.db.QueryRowContext(ctx, upsertMessage,
+		arg.ConversationID,
+		arg.SourceFileID,
+		arg.Role,
+		arg.Seq,
+		arg.CreatedAt,
+		arg.Text,
+		arg.RawJson,
+		arg.RawLine,
+		arg.ContentHash,
+	)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.SourceFileID,
+		&i.Role,
+		&i.Seq,
+		&i.CreatedAt,
+		&i.Text,
+		&i.RawJson,
+		&i.RawLine,
+		&i.ContentHash,
+	)
+	return i, err
+}
+
+const upsertMessageBlock = `-- name: UpsertMessageBlock :one
+INSERT INTO message_blocks (message_id, seq, type, text, raw_json)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(message_id, seq) DO UPDATE SET
+    type = excluded.type,
+    text = excluded.text,
+    raw_json = excluded.raw_json
+RETURNING id, message_id, seq, type, text, raw_json
+`
+
+type UpsertMessageBlockParams struct {
+	MessageID int64          `json:"message_id"`
+	Seq       int64          `json:"seq"`
+	Type      string         `json:"type"`
+	Text      sql.NullString `json:"text"`
+	RawJson   sql.NullString `json:"raw_json"`
+}
+
+func (q *Queries) UpsertMessageBlock(ctx context.Context, arg UpsertMessageBlockParams) (MessageBlock, error) {
+	row := q.db.QueryRowContext(ctx, upsertMessageBlock,
+		arg.MessageID,
+		arg.Seq,
+		arg.Type,
+		arg.Text,
+		arg.RawJson,
+	)
+	var i MessageBlock
+	err := row.Scan(
+		&i.ID,
+		&i.MessageID,
+		&i.Seq,
+		&i.Type,
+		&i.Text,
+		&i.RawJson,
+	)
+	return i, err
+}
