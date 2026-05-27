@@ -44,6 +44,8 @@ type Querier interface {
 	DeleteSourceFile(ctx context.Context, id int64) error
 	DeleteTaskItem(ctx context.Context, id int64) error
 	DeleteToolCall(ctx context.Context, id int64) error
+	DeleteToolCallFileMentionsForMessage(ctx context.Context, messageID int64) error
+	DeleteToolCallsForMessage(ctx context.Context, messageID int64) error
 	DeleteTopic(ctx context.Context, id int64) error
 	GetArtifact(ctx context.Context, id int64) (Artifact, error)
 	GetConversation(ctx context.Context, id int64) (Conversation, error)
@@ -85,10 +87,10 @@ type Querier interface {
 	ListProjectTasks(ctx context.Context, projectID sql.NullInt64) ([]TaskItem, error)
 	ListProjectTasksByStatus(ctx context.Context, arg ListProjectTasksByStatusParams) ([]TaskItem, error)
 	ListProjects(ctx context.Context) ([]Project, error)
-	ListRelatedFilesForMessages(ctx context.Context, arg ListRelatedFilesForMessagesParams) ([]ListRelatedFilesForMessagesRow, error)
+	ListRelatedFilesForConversations(ctx context.Context, arg ListRelatedFilesForConversationsParams) ([]ListRelatedFilesForConversationsRow, error)
 	ListSourceFiles(ctx context.Context, sourceID int64) ([]SourceFile, error)
 	ListSources(ctx context.Context) ([]Source, error)
-	ListToolCallsForMessages(ctx context.Context, arg ListToolCallsForMessagesParams) ([]ListToolCallsForMessagesRow, error)
+	ListToolCallsForConversations(ctx context.Context, arg ListToolCallsForConversationsParams) ([]ListToolCallsForConversationsRow, error)
 	ListTopics(ctx context.Context) ([]Topic, error)
 	SearchArtifactHits(ctx context.Context, arg SearchArtifactHitsParams) ([]SearchArtifactHitsRow, error)
 	SearchMemoryHits(ctx context.Context, arg SearchMemoryHitsParams) ([]SearchMemoryHitsRow, error)

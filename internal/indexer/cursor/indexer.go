@@ -24,7 +24,7 @@ import (
 
 const (
 	sourceKind    = "cursor"
-	parserVersion = "cursor-jsonl-v4"
+	parserVersion = "cursor-jsonl-v5"
 )
 
 var (
@@ -341,20 +341,35 @@ func indexTranscript(
 			return false, 0, 0, fmt.Errorf("upsert message %s:%d: %w", transcript.Path, line.LineNumber, err)
 		}
 
+		if err := q.DeleteToolCallFileMentionsForMessage(ctx, message.ID); err != nil {
+			return false, 0, 0, fmt.Errorf("delete tool call file mentions %s:%d: %w", transcript.Path, line.LineNumber, err)
+		}
+		if err := q.DeleteToolCallsForMessage(ctx, message.ID); err != nil {
+			return false, 0, 0, fmt.Errorf("delete tool calls %s:%d: %w", transcript.Path, line.LineNumber, err)
+		}
+
 		if err := indexFileMentions(ctx, q, project.ID, message.ID, line.Text()); err != nil {
 			return false, 0, 0, fmt.Errorf("index file mentions %s:%d: %w", transcript.Path, line.LineNumber, err)
 		}
 
+		messageCreatedAt := lineCreatedAt(line, fallbackCreatedAt)
 		for blockSeq, block := range line.Blocks {
 			rawBlock := string(block.Raw)
-			if _, err := q.UpsertMessageBlock(ctx, db.UpsertMessageBlockParams{
+			messageBlock, err := q.UpsertMessageBlock(ctx, db.UpsertMessageBlockParams{
 				MessageID: message.ID,
 				Seq:       int64(blockSeq + 1),
 				Type:      blockType(block.Type),
 				Text:      sql.NullString{String: block.Text, Valid: block.Text != ""},
 				RawJson:   sql.NullString{String: rawBlock, Valid: rawBlock != ""},
-			}); err != nil {
+			})
+			if err != nil {
 				return false, 0, 0, fmt.Errorf("upsert message block %s:%d: %w", transcript.Path, line.LineNumber, err)
+			}
+
+			if block.Type == "tool_use" && len(block.Raw) > 0 {
+				if err := indexToolCall(ctx, q, project.ID, message.ID, messageBlock.ID, block.Raw, messageCreatedAt); err != nil {
+					return false, 0, 0, fmt.Errorf("index tool call %s:%d: %w", transcript.Path, line.LineNumber, err)
+				}
 			}
 		}
 	}

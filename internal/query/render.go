@@ -51,10 +51,16 @@ func RenderText(resp Response) string {
 				status = "unknown"
 			}
 			fmt.Fprintf(&b, "- %s [%s] message:%d", call.ToolName, status, call.MessageID)
+			if call.WorkingDirectory != "" {
+				fmt.Fprintf(&b, " wd:%s", call.WorkingDirectory)
+			}
 			if call.CreatedAt != "" {
 				fmt.Fprintf(&b, " %s", mutedStyle.Render("["+relativeTime(call.CreatedAt)+"]"))
 			}
 			b.WriteString("\n")
+			if args := formatToolArguments(call); args != "" {
+				fmt.Fprintf(&b, "  %s\n", mutedStyle.Render(args))
+			}
 		}
 	}
 
@@ -157,4 +163,16 @@ func pluralize(value int, unit string) string {
 		return fmt.Sprintf("1 %s", unit)
 	}
 	return fmt.Sprintf("%d %ss", value, unit)
+}
+
+func formatToolArguments(call ToolCall) string {
+	args := strings.TrimSpace(call.Arguments)
+	if args == "" {
+		return ""
+	}
+	const maxLen = 240
+	if len(args) <= maxLen {
+		return args
+	}
+	return args[:maxLen-3] + "..."
 }

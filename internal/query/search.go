@@ -146,22 +146,28 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 	}
 
 	result := make([]ResultItem, 0, len(hits))
-	messageIDs := make([]int64, 0, len(hits))
+	conversationIDs := make([]int64, 0, len(hits))
+	seenConversations := make(map[int64]struct{})
 	for _, item := range hits {
 		result = append(result, toResultItem(item))
-		if item.resultType == "message" {
-			messageIDs = append(messageIDs, item.entityID)
+		if item.resultType != "message" || item.conversationID == 0 {
+			continue
 		}
+		if _, ok := seenConversations[item.conversationID]; ok {
+			continue
+		}
+		seenConversations[item.conversationID] = struct{}{}
+		conversationIDs = append(conversationIDs, item.conversationID)
 	}
 
 	response := Response{Result: result}
-	if len(messageIDs) == 0 {
+	if len(conversationIDs) == 0 {
 		return response, nil
 	}
 
-	related, err := q.ListRelatedFilesForMessages(ctx, generateddb.ListRelatedFilesForMessagesParams{
-		MessageIds: toNullInt64Slice(messageIDs),
-		Limit:      relatedFilesLimit,
+	related, err := q.ListRelatedFilesForConversations(ctx, generateddb.ListRelatedFilesForConversationsParams{
+		ConversationIds: conversationIDs,
+		Limit:           relatedFilesLimit,
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("list related files: %w", err)
@@ -177,9 +183,9 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		}
 	}
 
-	toolCalls, err := q.ListToolCallsForMessages(ctx, generateddb.ListToolCallsForMessagesParams{
-		MessageIds: messageIDs,
-		Limit:      toolCallsLimit,
+	toolCalls, err := q.ListToolCallsForConversations(ctx, generateddb.ListToolCallsForConversationsParams{
+		ConversationIds: conversationIDs,
+		Limit:           toolCallsLimit,
 	})
 	if err != nil {
 		return Response{}, fmt.Errorf("list tool calls: %w", err)
@@ -188,10 +194,12 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		response.ToolCalls = make([]ToolCall, 0, len(toolCalls))
 		for _, row := range toolCalls {
 			response.ToolCalls = append(response.ToolCalls, ToolCall{
-				ToolName:  row.ToolName,
-				Status:    row.Status,
-				CreatedAt: row.CreatedAt,
-				MessageID: row.MessageID,
+				ToolName:         row.ToolName,
+				Arguments:        row.ArgumentsJson,
+				WorkingDirectory: row.WorkingDirectory,
+				Status:           row.Status,
+				CreatedAt:        row.CreatedAt,
+				MessageID:        row.MessageID,
 			})
 		}
 	}
@@ -295,12 +303,4 @@ func snippetText(value any) string {
 	default:
 		return strings.TrimSpace(fmt.Sprint(typed))
 	}
-}
-
-func toNullInt64Slice(ids []int64) []sql.NullInt64 {
-	out := make([]sql.NullInt64, len(ids))
-	for i, id := range ids {
-		out[i] = sql.NullInt64{Int64: id, Valid: true}
-	}
-	return out
 }

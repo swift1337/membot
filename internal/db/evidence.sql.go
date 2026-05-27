@@ -235,6 +235,28 @@ func (q *Queries) DeleteToolCall(ctx context.Context, id int64) error {
 	return err
 }
 
+const deleteToolCallFileMentionsForMessage = `-- name: DeleteToolCallFileMentionsForMessage :exec
+DELETE FROM file_mentions
+WHERE tool_call_id IN (
+    SELECT tc.id FROM tool_calls tc WHERE tc.message_id = ?
+)
+`
+
+func (q *Queries) DeleteToolCallFileMentionsForMessage(ctx context.Context, messageID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteToolCallFileMentionsForMessage, messageID)
+	return err
+}
+
+const deleteToolCallsForMessage = `-- name: DeleteToolCallsForMessage :exec
+DELETE FROM tool_calls
+WHERE message_id = ?
+`
+
+func (q *Queries) DeleteToolCallsForMessage(ctx context.Context, messageID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteToolCallsForMessage, messageID)
+	return err
+}
+
 const getArtifact = `-- name: GetArtifact :one
 SELECT id, source_file_id, conversation_id, path, kind, text, sha256, created_at FROM artifacts
 WHERE id = ?
@@ -509,7 +531,7 @@ func (q *Queries) ListMessageToolCalls(ctx context.Context, messageID int64) ([]
 	return items, nil
 }
 
-const listRelatedFilesForMessages = `-- name: ListRelatedFilesForMessages :many
+const listRelatedFilesForConversations = `-- name: ListRelatedFilesForConversations :many
 SELECT
     f.path,
     coalesce(p.name, p.slug, '') AS project_name,
@@ -517,33 +539,34 @@ SELECT
 FROM file_mentions fm
 JOIN files f ON f.id = fm.file_id
 LEFT JOIN projects p ON p.id = f.project_id
-WHERE fm.message_id IN (/*SLICE:message_ids*/?)
+JOIN messages m ON m.id = fm.message_id
+WHERE m.conversation_id IN (/*SLICE:conversation_ids*/?)
 GROUP BY f.id
 ORDER BY mentions DESC, f.path
 LIMIT ?
 `
 
-type ListRelatedFilesForMessagesParams struct {
-	MessageIds []sql.NullInt64 `json:"message_ids"`
-	Limit      int64           `json:"limit"`
+type ListRelatedFilesForConversationsParams struct {
+	ConversationIds []int64 `json:"conversation_ids"`
+	Limit           int64   `json:"limit"`
 }
 
-type ListRelatedFilesForMessagesRow struct {
+type ListRelatedFilesForConversationsRow struct {
 	Path        string `json:"path"`
 	ProjectName string `json:"project_name"`
 	Mentions    int64  `json:"mentions"`
 }
 
-func (q *Queries) ListRelatedFilesForMessages(ctx context.Context, arg ListRelatedFilesForMessagesParams) ([]ListRelatedFilesForMessagesRow, error) {
-	query := listRelatedFilesForMessages
+func (q *Queries) ListRelatedFilesForConversations(ctx context.Context, arg ListRelatedFilesForConversationsParams) ([]ListRelatedFilesForConversationsRow, error) {
+	query := listRelatedFilesForConversations
 	var queryParams []interface{}
-	if len(arg.MessageIds) > 0 {
-		for _, v := range arg.MessageIds {
+	if len(arg.ConversationIds) > 0 {
+		for _, v := range arg.ConversationIds {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:message_ids*/?", strings.Repeat(",?", len(arg.MessageIds))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:conversation_ids*/?", strings.Repeat(",?", len(arg.ConversationIds))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:message_ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:conversation_ids*/?", "NULL", 1)
 	}
 	queryParams = append(queryParams, arg.Limit)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
@@ -551,9 +574,9 @@ func (q *Queries) ListRelatedFilesForMessages(ctx context.Context, arg ListRelat
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListRelatedFilesForMessagesRow{}
+	items := []ListRelatedFilesForConversationsRow{}
 	for rows.Next() {
-		var i ListRelatedFilesForMessagesRow
+		var i ListRelatedFilesForConversationsRow
 		if err := rows.Scan(&i.Path, &i.ProjectName, &i.Mentions); err != nil {
 			return nil, err
 		}
@@ -568,42 +591,47 @@ func (q *Queries) ListRelatedFilesForMessages(ctx context.Context, arg ListRelat
 	return items, nil
 }
 
-const listToolCallsForMessages = `-- name: ListToolCallsForMessages :many
+const listToolCallsForConversations = `-- name: ListToolCallsForConversations :many
 SELECT
     tc.id,
     tc.tool_name,
     coalesce(tc.status, '') AS status,
     coalesce(tc.created_at, '') AS created_at,
-    tc.message_id
+    tc.message_id,
+    coalesce(tc.arguments_json, '') AS arguments_json,
+    coalesce(tc.working_directory, '') AS working_directory
 FROM tool_calls tc
-WHERE tc.message_id IN (/*SLICE:message_ids*/?)
+JOIN messages m ON m.id = tc.message_id
+WHERE m.conversation_id IN (/*SLICE:conversation_ids*/?)
 ORDER BY coalesce(tc.created_at, '') DESC, tc.id DESC
 LIMIT ?
 `
 
-type ListToolCallsForMessagesParams struct {
-	MessageIds []int64 `json:"message_ids"`
-	Limit      int64   `json:"limit"`
+type ListToolCallsForConversationsParams struct {
+	ConversationIds []int64 `json:"conversation_ids"`
+	Limit           int64   `json:"limit"`
 }
 
-type ListToolCallsForMessagesRow struct {
-	ID        int64  `json:"id"`
-	ToolName  string `json:"tool_name"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
-	MessageID int64  `json:"message_id"`
+type ListToolCallsForConversationsRow struct {
+	ID               int64  `json:"id"`
+	ToolName         string `json:"tool_name"`
+	Status           string `json:"status"`
+	CreatedAt        string `json:"created_at"`
+	MessageID        int64  `json:"message_id"`
+	ArgumentsJson    string `json:"arguments_json"`
+	WorkingDirectory string `json:"working_directory"`
 }
 
-func (q *Queries) ListToolCallsForMessages(ctx context.Context, arg ListToolCallsForMessagesParams) ([]ListToolCallsForMessagesRow, error) {
-	query := listToolCallsForMessages
+func (q *Queries) ListToolCallsForConversations(ctx context.Context, arg ListToolCallsForConversationsParams) ([]ListToolCallsForConversationsRow, error) {
+	query := listToolCallsForConversations
 	var queryParams []interface{}
-	if len(arg.MessageIds) > 0 {
-		for _, v := range arg.MessageIds {
+	if len(arg.ConversationIds) > 0 {
+		for _, v := range arg.ConversationIds {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:message_ids*/?", strings.Repeat(",?", len(arg.MessageIds))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:conversation_ids*/?", strings.Repeat(",?", len(arg.ConversationIds))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:message_ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:conversation_ids*/?", "NULL", 1)
 	}
 	queryParams = append(queryParams, arg.Limit)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
@@ -611,15 +639,17 @@ func (q *Queries) ListToolCallsForMessages(ctx context.Context, arg ListToolCall
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListToolCallsForMessagesRow{}
+	items := []ListToolCallsForConversationsRow{}
 	for rows.Next() {
-		var i ListToolCallsForMessagesRow
+		var i ListToolCallsForConversationsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ToolName,
 			&i.Status,
 			&i.CreatedAt,
 			&i.MessageID,
+			&i.ArgumentsJson,
+			&i.WorkingDirectory,
 		); err != nil {
 			return nil, err
 		}

@@ -41,6 +41,64 @@ func TestConversationTimesFallsBackToSourceMtime(t *testing.T) {
 	}
 }
 
+func TestExtractApplyPatchFiles(t *testing.T) {
+	t.Parallel()
+
+	patch := `*** Begin Patch
+*** Update File: /Users/me/proj/foo.go
+@@
++line
+*** Add File: /Users/me/proj/bar.go
++new
+*** Delete File: /Users/me/proj/old.go
+*** End Patch`
+
+	got := extractApplyPatchFiles(patch)
+	want := []string{
+		"/Users/me/proj/foo.go",
+		"/Users/me/proj/bar.go",
+		"/Users/me/proj/old.go",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("extractApplyPatchFiles() = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("file %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestCompactToolArgumentsApplyPatch(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`"*** Begin Patch\n*** Update File: /tmp/a.go\n*** End Patch"`)
+	got := compactToolArguments("ApplyPatch", input)
+	const want = `{"files":["/tmp/a.go"]}`
+	if got != want {
+		t.Fatalf("compactToolArguments() = %q, want %q", got, want)
+	}
+}
+
+func TestExtractToolFileMentionsShell(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"command":"cast send 0xabc --rpc-url http://localhost:8545","working_directory":"/Users/me/evm"}`)
+	if got := extractToolFileMentions("Shell", input); len(got) != 0 {
+		t.Fatalf("Shell should not produce file mentions, got %#v", got)
+	}
+}
+
+func TestExtractToolFileMentionsReadFile(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{"path":"/Users/me/proj/main.go","offset":1,"limit":50}`)
+	got := extractToolFileMentions("ReadFile", input)
+	if len(got) != 1 || got[0].Path != "/Users/me/proj/main.go" || got[0].Kind != "tool_read" {
+		t.Fatalf("extractToolFileMentions() = %#v", got)
+	}
+}
+
 func TestExtractFileMentions(t *testing.T) {
 	t.Parallel()
 

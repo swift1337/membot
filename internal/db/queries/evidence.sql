@@ -37,6 +37,16 @@ ORDER BY id;
 DELETE FROM tool_calls
 WHERE id = ?;
 
+-- name: DeleteToolCallFileMentionsForMessage :exec
+DELETE FROM file_mentions
+WHERE tool_call_id IN (
+    SELECT tc.id FROM tool_calls tc WHERE tc.message_id = ?
+);
+
+-- name: DeleteToolCallsForMessage :exec
+DELETE FROM tool_calls
+WHERE message_id = ?;
+
 -- name: CreateFileMention :one
 INSERT INTO file_mentions (
     file_id, message_id, tool_call_id, mention_kind, line_start, line_end, snippet
@@ -84,7 +94,7 @@ ORDER BY id;
 DELETE FROM patches
 WHERE id = ?;
 
--- name: ListRelatedFilesForMessages :many
+-- name: ListRelatedFilesForConversations :many
 SELECT
     f.path,
     coalesce(p.name, p.slug, '') AS project_name,
@@ -92,19 +102,23 @@ SELECT
 FROM file_mentions fm
 JOIN files f ON f.id = fm.file_id
 LEFT JOIN projects p ON p.id = f.project_id
-WHERE fm.message_id IN (sqlc.slice(message_ids))
+JOIN messages m ON m.id = fm.message_id
+WHERE m.conversation_id IN (sqlc.slice(conversation_ids))
 GROUP BY f.id
 ORDER BY mentions DESC, f.path
 LIMIT ?;
 
--- name: ListToolCallsForMessages :many
+-- name: ListToolCallsForConversations :many
 SELECT
     tc.id,
     tc.tool_name,
     coalesce(tc.status, '') AS status,
     coalesce(tc.created_at, '') AS created_at,
-    tc.message_id
+    tc.message_id,
+    coalesce(tc.arguments_json, '') AS arguments_json,
+    coalesce(tc.working_directory, '') AS working_directory
 FROM tool_calls tc
-WHERE tc.message_id IN (sqlc.slice(message_ids))
+JOIN messages m ON m.id = tc.message_id
+WHERE m.conversation_id IN (sqlc.slice(conversation_ids))
 ORDER BY coalesce(tc.created_at, '') DESC, tc.id DESC
 LIMIT ?;
