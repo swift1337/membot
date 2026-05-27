@@ -24,7 +24,8 @@ func Run(ctx context.Context, st *store.Store) error {
 		Name: "search",
 		Description: "Full-text search over indexed assistant history: conversation messages, " +
 			"memory items, and artifacts. Use when you have keywords or topics, not when you " +
-			"already know a specific file path or filename.",
+			"already know a specific file path or filename. Query supports AND, OR, and " +
+			"parentheses, for example: (sqlite OR sqlc) AND migration.",
 	}, srv.search)
 
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{

@@ -55,6 +55,12 @@ Show formatted terminal output:
 membot query "sqlite migration" --text
 ```
 
+Use `AND`, `OR`, and parentheses for boolean searches:
+
+```sh
+membot query '(sqlite OR sqlc) AND migration' --text
+```
+
 Limit results to a project and recent history:
 
 ```sh
@@ -67,8 +73,10 @@ Return JSON for scripts:
 membot query "cursor transcripts"
 ```
 
-Search terms are matched with prefix full-text search. Results may include
-conversation hits, related files, and tool calls linked to matching messages.
+Search terms are matched with prefix full-text search. Adjacent terms are
+combined with `AND`; use uppercase `OR` for alternatives and parentheses for
+grouping. Results may include conversation hits, related files, and tool calls
+linked to matching messages.
 
 Find conversations that touched a specific file:
 
@@ -119,7 +127,7 @@ and serves whatever is already in the database.
 
 | Tool | Description |
 | --- | --- |
-| `search` | Full-text search over messages, memory, and artifacts. Args: `query` (required), optional `project`, `since`, `limit`. Same as `membot query`. |
+| `search` | Full-text search over messages, memory, and artifacts. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `since`, `limit`. Same as `membot query`. |
 | `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `limit`. Same as `membot query files`. |
 | `list_projects` | List indexed workspaces with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
 
