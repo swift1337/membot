@@ -144,11 +144,11 @@ func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 
 func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
 	var (
-		projectFlag  string
-		sinceFlag    string
-		textFlag     bool
-		limitFlag    int
-		orderByFlag  string
+		projectFlag string
+		sinceFlag   string
+		textFlag    bool
+		limitFlag   int
+		orderByFlag string
 	)
 
 	cmd := &cobra.Command{
@@ -205,6 +205,7 @@ Examples:
 		filesProjectFlag string
 		filesTextFlag    bool
 		filesLimitFlag   int
+		projectsTextFlag bool
 	)
 	filesCmd := &cobra.Command{
 		Use:     "files <filename-or-path>",
@@ -244,9 +245,9 @@ Examples:
 	filesCmd.Flags().IntVar(&filesLimitFlag, "limit", 20, "Maximum number of results")
 	cmd.AddCommand(filesCmd)
 
-	cmd.AddCommand(&cobra.Command{
+	projectsCmd := &cobra.Command{
 		Use:   "projects",
-		Short: "List indexed projects as JSON",
+		Short: "List indexed projects",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := openStore(cmd)
 			if err != nil {
@@ -261,9 +262,15 @@ Examples:
 				return err
 			}
 
+			if projectsTextFlag {
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), query.RenderProjectsText(projects))
+				return err
+			}
 			return writeJSON(cmd, projects)
 		},
-	})
+	}
+	projectsCmd.Flags().BoolVar(&projectsTextFlag, "text", false, "Render projects as formatted text instead of JSON")
+	cmd.AddCommand(projectsCmd)
 
 	return cmd
 }

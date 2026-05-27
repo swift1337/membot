@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+
+	generateddb "github.com/swift1337/membot/internal/db"
 )
 
 var (
@@ -63,6 +65,35 @@ func RenderFileContextText(resp FileContextResponse) string {
 		if item.Snippet != "" {
 			fmt.Fprintf(&b, "  %s\n", formatSnippet(item.Snippet))
 		}
+	}
+
+	return b.String()
+}
+
+// RenderProjectsText formats project summaries for terminal output.
+func RenderProjectsText(projects []generateddb.ListProjectSummariesRow) string {
+	if len(projects) == 0 {
+		return mutedStyle.Render("No projects indexed.")
+	}
+
+	var b strings.Builder
+	b.WriteString(headerStyle.Render(pluralize(len(projects), "project")))
+	b.WriteString("\n\n")
+
+	for _, project := range projects {
+		label := project.ProjectName
+		if label == "" {
+			label = project.ProjectSlug
+		}
+		if project.ProjectSlug != "" && project.ProjectSlug != label {
+			label = fmt.Sprintf("%s (%s)", label, project.ProjectSlug)
+		}
+
+		fmt.Fprintf(&b, "- %s %s", label, mutedStyle.Render("["+pluralize(int(project.Chats), "chat")+"]"))
+		if project.ProjectDir != "" {
+			fmt.Fprintf(&b, "\n  %s", project.ProjectDir)
+		}
+		b.WriteString("\n")
 	}
 
 	return b.String()
