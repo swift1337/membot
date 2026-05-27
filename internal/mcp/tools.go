@@ -11,7 +11,7 @@ import (
 )
 
 type searchInput struct {
-	Query   string `json:"query" jsonschema:"required keywords or phrase to match in message memory and artifact text"`
+	Query   string `json:"query" jsonschema:"required search text; supports AND OR and parentheses e.g. (foo OR bar) AND fizz"`
 	Project string `json:"project,omitempty" jsonschema:"optional project name slug or filesystem path to narrow results"`
 	Since   string `json:"since,omitempty" jsonschema:"optional time window such as yesterday 3h or 1 week"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"maximum hits to return default 20 max 100"`

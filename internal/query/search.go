@@ -39,7 +39,10 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		return Response{}, fmt.Errorf("query string is required")
 	}
 
-	ftsQuery := buildFTSQuery(query)
+	ftsQuery, err := buildFTSQuery(query)
+	if err != nil {
+		return Response{}, err
+	}
 	if ftsQuery == "" {
 		return Response{}, fmt.Errorf("query string has no searchable terms")
 	}

@@ -1,27 +1,79 @@
 package query
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 )
 
 // buildFTSQuery turns user input into an FTS5 query with prefix matching.
-func buildFTSQuery(input string) string {
-	terms := strings.Fields(strings.TrimSpace(input))
-	if len(terms) == 0 {
-		return ""
+// It supports AND, OR, and parenthesized grouping.
+func buildFTSQuery(input string) (string, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", nil
 	}
 
-	parts := make([]string, 0, len(terms))
-	for _, term := range terms {
-		if cleaned := ftsTerm(term); cleaned != "" {
-			parts = append(parts, cleaned)
+	ast, err := parseQuery(input)
+	if err != nil {
+		return "", fmt.Errorf("parse query: %w", err)
+	}
+
+	fts := emitFTS(ast)
+	if fts == "" {
+		return "", fmt.Errorf("query string has no searchable terms")
+	}
+	return fts, nil
+}
+
+func emitFTS(node queryNode) string {
+	switch n := node.(type) {
+	case *termNode:
+		return ftsTerm(n.raw)
+	case *andNode:
+		return emitBool(" AND ", n.children)
+	case *orNode:
+		return emitBool(" OR ", n.children)
+	default:
+		return ""
+	}
+}
+
+func emitBool(op string, children []queryNode) string {
+	parts := make([]string, 0, len(children))
+	for _, child := range children {
+		if emitted := emitChild(child); emitted != "" {
+			parts = append(parts, emitted)
 		}
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return strings.Join(parts, " OR ")
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return strings.Join(parts, op)
+}
+
+func emitChild(node queryNode) string {
+	switch n := node.(type) {
+	case *termNode:
+		return ftsTerm(n.raw)
+	case *andNode:
+		emitted := emitBool(" AND ", n.children)
+		if emitted == "" {
+			return ""
+		}
+		return "(" + emitted + ")"
+	case *orNode:
+		emitted := emitBool(" OR ", n.children)
+		if emitted == "" {
+			return ""
+		}
+		return "(" + emitted + ")"
+	default:
+		return ""
+	}
 }
 
 func ftsTerm(term string) string {
