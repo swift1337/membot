@@ -37,7 +37,7 @@ func RenderText(resp Response) string {
 		b.WriteString(headerStyle.Render("Related files"))
 		b.WriteString("\n\n")
 		for _, file := range resp.RelatedFiles {
-			b.WriteString(fmt.Sprintf("- %s (%s, %d mentions)\n", file.Path, file.ProjectName, file.Mentions))
+			fmt.Fprintf(&b, "- %s (%s, %d mentions)\n", file.Path, file.ProjectName, file.Mentions)
 		}
 	}
 
@@ -50,9 +50,9 @@ func RenderText(resp Response) string {
 			if status == "" {
 				status = "unknown"
 			}
-			b.WriteString(fmt.Sprintf("- %s [%s] message:%d", call.ToolName, status, call.MessageID))
+			fmt.Fprintf(&b, "- %s [%s] message:%d", call.ToolName, status, call.MessageID)
 			if call.CreatedAt != "" {
-				b.WriteString(fmt.Sprintf(" %s", mutedStyle.Render("["+relativeTime(call.CreatedAt)+"]")))
+				fmt.Fprintf(&b, " %s", mutedStyle.Render("["+relativeTime(call.CreatedAt)+"]"))
 			}
 			b.WriteString("\n")
 		}

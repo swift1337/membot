@@ -96,8 +96,19 @@ func scoreProject(project generateddb.Project, needle string) int {
 }
 
 func projectLabel(project generateddb.Project) string {
-	if project.Name.Valid && project.Name.String != "" {
-		return project.Name.String
+	path := ""
+	if project.CanonicalPath.Valid {
+		path = project.CanonicalPath.String
+	} else if project.GitRoot.Valid {
+		path = project.GitRoot.String
 	}
-	return project.Slug
+
+	name := project.Slug
+	if project.Name.Valid && project.Name.String != "" {
+		name = project.Name.String
+	}
+	if path != "" {
+		return fmt.Sprintf("%s (%s)", name, path)
+	}
+	return name
 }

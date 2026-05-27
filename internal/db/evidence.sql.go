@@ -205,6 +205,16 @@ func (q *Queries) DeleteFileMention(ctx context.Context, id int64) error {
 	return err
 }
 
+const deleteFileMentionsForMessage = `-- name: DeleteFileMentionsForMessage :exec
+DELETE FROM file_mentions
+WHERE message_id = ?
+`
+
+func (q *Queries) DeleteFileMentionsForMessage(ctx context.Context, messageID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, deleteFileMentionsForMessage, messageID)
+	return err
+}
+
 const deletePatch = `-- name: DeletePatch :exec
 DELETE FROM patches
 WHERE id = ?

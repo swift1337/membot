@@ -33,6 +33,7 @@ type Querier interface {
 	DeleteEntityMention(ctx context.Context, id int64) error
 	DeleteFile(ctx context.Context, id int64) error
 	DeleteFileMention(ctx context.Context, id int64) error
+	DeleteFileMentionsForMessage(ctx context.Context, messageID sql.NullInt64) error
 	DeleteMemoryItem(ctx context.Context, id int64) error
 	DeleteMessage(ctx context.Context, id int64) error
 	DeleteMessageBlock(ctx context.Context, id int64) error

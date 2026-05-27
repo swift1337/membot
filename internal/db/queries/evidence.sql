@@ -54,6 +54,10 @@ SELECT * FROM file_mentions
 WHERE message_id = ?
 ORDER BY id;
 
+-- name: DeleteFileMentionsForMessage :exec
+DELETE FROM file_mentions
+WHERE message_id = ?;
+
 -- name: DeleteFileMention :exec
 DELETE FROM file_mentions
 WHERE id = ?;

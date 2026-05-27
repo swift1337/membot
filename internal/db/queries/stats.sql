@@ -8,6 +8,7 @@ SELECT
 
 -- name: ListProjectSummaries :many
 SELECT
+    p.slug AS project_slug,
     coalesce(p.name, p.slug) AS project_name,
     coalesce(p.canonical_path, p.git_root, '') AS project_dir,
     count(c.id) AS chats

@@ -24,10 +24,16 @@ import (
 
 const (
 	sourceKind    = "cursor"
-	parserVersion = "cursor-jsonl-v2"
+	parserVersion = "cursor-jsonl-v4"
 )
 
-var timestampTagPattern = regexp.MustCompile(`(?s)<timestamp>\s*([^<]+?)\s*</timestamp>`)
+var (
+	timestampTagPattern = regexp.MustCompile(`(?s)<timestamp>\s*([^<]+?)\s*</timestamp>`)
+	codeRefPattern      = regexp.MustCompile("(?m)^```(\\d+):(\\d+):([^\\n`]+)")
+	inlineCodePattern   = regexp.MustCompile("`([^`\\n]+)`")
+	atPathPattern       = regexp.MustCompile(`@([A-Za-z0-9_./~:-]+)`)
+	lineRangePattern    = regexp.MustCompile(`^\d+:\d+:`)
+)
 
 type Options struct {
 	Root string
@@ -335,6 +341,10 @@ func indexTranscript(
 			return false, 0, 0, fmt.Errorf("upsert message %s:%d: %w", transcript.Path, line.LineNumber, err)
 		}
 
+		if err := indexFileMentions(ctx, q, project.ID, message.ID, line.Text()); err != nil {
+			return false, 0, 0, fmt.Errorf("index file mentions %s:%d: %w", transcript.Path, line.LineNumber, err)
+		}
+
 		for blockSeq, block := range line.Blocks {
 			rawBlock := string(block.Raw)
 			if _, err := q.UpsertMessageBlock(ctx, db.UpsertMessageBlockParams{
@@ -372,6 +382,143 @@ func (l parsedLine) Text() string {
 		}
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+type fileMention struct {
+	Path      string
+	Kind      string
+	LineStart int64
+	LineEnd   int64
+	Snippet   string
+}
+
+func indexFileMentions(
+	ctx context.Context,
+	q *db.Queries,
+	projectID int64,
+	messageID int64,
+	text string,
+) error {
+	if err := q.DeleteFileMentionsForMessage(ctx, sql.NullInt64{Int64: messageID, Valid: true}); err != nil {
+		return err
+	}
+
+	mentions := extractFileMentions(text)
+	for _, mention := range mentions {
+		file, err := q.UpsertFile(ctx, db.UpsertFileParams{
+			ProjectID:      sql.NullInt64{Int64: projectID, Valid: true},
+			Path:           mention.Path,
+			NormalizedPath: sql.NullString{String: normalizedFilePath(mention.Path), Valid: true},
+			Kind:           sql.NullString{String: "mentioned", Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+
+		lineStart := sql.NullInt64{}
+		if mention.LineStart > 0 {
+			lineStart = sql.NullInt64{Int64: mention.LineStart, Valid: true}
+		}
+		lineEnd := sql.NullInt64{}
+		if mention.LineEnd > 0 {
+			lineEnd = sql.NullInt64{Int64: mention.LineEnd, Valid: true}
+		}
+		if _, err := q.CreateFileMention(ctx, db.CreateFileMentionParams{
+			FileID:      file.ID,
+			MessageID:   sql.NullInt64{Int64: messageID, Valid: true},
+			MentionKind: mention.Kind,
+			LineStart:   lineStart,
+			LineEnd:     lineEnd,
+			Snippet:     sql.NullString{String: mention.Snippet, Valid: mention.Snippet != ""},
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func extractFileMentions(text string) []fileMention {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	mentions := make([]fileMention, 0)
+	add := func(candidate, kind string, lineStart, lineEnd int64) {
+		path := cleanMentionPath(candidate)
+		if path == "" {
+			return
+		}
+		key := normalizedFilePath(path)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		mentions = append(mentions, fileMention{
+			Path:      path,
+			Kind:      kind,
+			LineStart: lineStart,
+			LineEnd:   lineEnd,
+			Snippet:   truncateMentionSnippet(text),
+		})
+	}
+
+	for _, match := range codeRefPattern.FindAllStringSubmatch(text, -1) {
+		lineStart := parseInt64(match[1])
+		lineEnd := parseInt64(match[2])
+		add(match[3], "code_ref", lineStart, lineEnd)
+	}
+	for _, match := range inlineCodePattern.FindAllStringSubmatch(text, -1) {
+		add(match[1], "inline_code", 0, 0)
+	}
+	for _, match := range atPathPattern.FindAllStringSubmatch(text, -1) {
+		add(match[1], "at_ref", 0, 0)
+	}
+
+	return mentions
+}
+
+func cleanMentionPath(candidate string) string {
+	candidate = strings.TrimSpace(candidate)
+	candidate = strings.Trim(candidate, "`'\".,;:)]}>")
+	candidate = strings.TrimPrefix(candidate, "@")
+	candidate = lineRangePattern.ReplaceAllString(candidate, "")
+	if candidate == "" ||
+		strings.Contains(candidate, "://") ||
+		strings.ContainsAny(candidate, " \t\n\r") ||
+		!strings.Contains(candidate, "/") {
+		return ""
+	}
+	cleaned := normalizedFilePath(candidate)
+	if cleaned == "." || cleaned == string(filepath.Separator) {
+		return ""
+	}
+	return cleaned
+}
+
+func normalizedFilePath(path string) string {
+	return filepath.ToSlash(filepath.Clean(path))
+}
+
+func truncateMentionSnippet(text string) string {
+	text = strings.TrimSpace(strings.ReplaceAll(text, "\n", " "))
+	const maxSnippetLength = 240
+	if len(text) <= maxSnippetLength {
+		return text
+	}
+	return text[:maxSnippetLength-3] + "..."
+}
+
+func parseInt64(value string) int64 {
+	var parsed int64
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return 0
+		}
+		parsed = parsed*10 + int64(r-'0')
+	}
+	return parsed
 }
 
 type parseError struct {

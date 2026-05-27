@@ -15,7 +15,7 @@ func buildFTSQuery(input string) string {
 	parts := make([]string, 0, len(terms))
 	for _, term := range terms {
 		if cleaned := ftsTerm(term); cleaned != "" {
-			parts = append(parts, cleaned+"*")
+			parts = append(parts, cleaned)
 		}
 	}
 	if len(parts) == 0 {
@@ -25,16 +25,35 @@ func buildFTSQuery(input string) string {
 }
 
 func ftsTerm(term string) string {
+	tokens := ftsTokens(term)
+	if len(tokens) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		parts = append(parts, token+"*")
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return "(" + strings.Join(parts, " AND ") + ")"
+}
+
+func ftsTokens(term string) []string {
+	var tokens []string
 	var b strings.Builder
 	for _, r := range term {
-		switch r {
-		case '"':
-			b.WriteString(`""`)
-		default:
-			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' {
-				b.WriteRune(r)
-			}
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			b.WriteRune(r)
+			continue
+		}
+		if b.Len() > 0 {
+			tokens = append(tokens, b.String())
+			b.Reset()
 		}
 	}
-	return strings.TrimSpace(b.String())
+	if b.Len() > 0 {
+		tokens = append(tokens, b.String())
+	}
+	return tokens
 }
