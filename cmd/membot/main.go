@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cursorindexer "github.com/swift1337/membot/internal/indexer/cursor"
 	"github.com/swift1337/membot/internal/query"
 	"github.com/swift1337/membot/internal/store"
 )
@@ -56,88 +55,9 @@ func newRootCommand() *cobra.Command {
 		},
 	})
 	cmd.AddCommand(newIndexCommand(openStore))
+	cmd.AddCommand(newServiceCommand(&dbPath))
 	cmd.AddCommand(newQueryCommand(openStore))
 	cmd.AddCommand(newMCPCommand(openStore))
-
-	return cmd
-}
-
-func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "index",
-		Short: "Index local assistant history",
-	}
-
-	var (
-		cursorRoot    string
-		cursorReindex bool
-	)
-	cursorCmd := &cobra.Command{
-		Use:   "cursor",
-		Short: "Index local Cursor project transcripts",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-
-			if cursorReindex {
-				dbPath := db.Path()
-				if err := db.Close(); err != nil {
-					return err
-				}
-				if err := store.RemoveDatabaseFiles(dbPath); err != nil {
-					return err
-				}
-				db, err = openStore(cmd)
-				if err != nil {
-					return err
-				}
-			}
-			defer func() {
-				_ = db.Close()
-			}()
-
-			result, err := cursorindexer.Index(cmd.Context(), db, cursorindexer.Options{Root: cursorRoot})
-			if err != nil {
-				return err
-			}
-
-			return writeJSON(cmd, result)
-		},
-	}
-	cursorCmd.Flags().StringVar(&cursorRoot, "root", cursorindexer.DefaultRoot(), "Cursor projects root")
-	cursorCmd.Flags().BoolVar(&cursorReindex, "reindex", false, "Delete the database file before indexing")
-
-	cmd.AddCommand(cursorCmd)
-	cmd.AddCommand(&cobra.Command{
-		Use:   "stats",
-		Short: "Print index statistics as JSON",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = db.Close()
-			}()
-
-			stats, err := db.Queries().GetIndexStats(cmd.Context())
-			if err != nil {
-				return err
-			}
-
-			return writeJSON(cmd, map[string]any{
-				"db_path":            db.Path(),
-				"db_size_bytes":      dbSizeBytes(db.Path()),
-				"project_count":      stats.ProjectCount,
-				"conversation_count": stats.ConversationCount,
-				"message_count":      stats.MessageCount,
-				"source_file_count":  stats.SourceFileCount,
-				"last_indexed_at":    sqliteText(stats.LastIndexedAt),
-			})
-		},
-	})
 
 	return cmd
 }

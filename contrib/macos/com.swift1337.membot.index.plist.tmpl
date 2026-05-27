@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>{{.Label}}</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{.MembotPath}}</string>
+		<string>index</string>
+		<string>all</string>
+		<string>--watch</string>
+		<string>--interval</string>
+		<string>{{.Interval}}</string>
+		<string>--db</string>
+		<string>{{.DBPath}}</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>{{.StdoutPath}}</string>
+	<key>StandardErrorPath</key>
+	<string>{{.StderrPath}}</string>
+</dict>
+</plist>

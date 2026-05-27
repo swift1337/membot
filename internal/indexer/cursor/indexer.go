@@ -477,20 +477,24 @@ func indexTranscript(
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("stat transcript %s: %w", transcript.Path, err)
 	}
-	hash, err := fileSHA256(transcript.Path)
-	if err != nil {
-		return false, 0, 0, err
-	}
 
 	existing, err := st.Queries().GetSourceFileByPath(ctx, db.GetSourceFileByPathParams{
 		SourceID: sourceID,
 		Path:     transcript.Path,
 	})
-	if err == nil && sourceFileUnchanged(existing, info, hash) {
+	if err == nil && sourceFileMetadataUnchanged(existing, info) {
 		return false, 0, 0, nil
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, 0, 0, fmt.Errorf("read indexed source file %s: %w", transcript.Path, err)
+	}
+
+	hash, err := fileSHA256(transcript.Path)
+	if err != nil {
+		return false, 0, 0, err
+	}
+	if err == nil && sourceFileUnchanged(existing, info, hash) {
+		return false, 0, 0, nil
 	}
 
 	tx, err := st.DB().BeginTx(ctx, nil)
@@ -1011,6 +1015,14 @@ func parseContent(raw json.RawMessage) ([]contentBlock, error) {
 		blocks = append(blocks, block)
 	}
 	return blocks, nil
+}
+
+func sourceFileMetadataUnchanged(file db.SourceFile, info os.FileInfo) bool {
+	return file.SizeBytes.Valid &&
+		file.SizeBytes.Int64 == info.Size() &&
+		file.MtimeUnix.Valid &&
+		file.MtimeUnix.Int64 == info.ModTime().Unix() &&
+		file.ParserVersion == parserVersion
 }
 
 func sourceFileUnchanged(file db.SourceFile, info os.FileInfo, hash string) bool {
