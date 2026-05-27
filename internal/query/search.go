@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -54,6 +53,11 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 	}
 
 	since, err := parseSince(opts.Since, time.Now())
+	if err != nil {
+		return Response{}, err
+	}
+
+	orderBy, err := parseOrderBy(string(opts.OrderBy))
 	if err != nil {
 		return Response{}, err
 	}
@@ -135,12 +139,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 	hits = append(hits, hitsFromMemory(memoryHits)...)
 	hits = append(hits, hitsFromArtifacts(artifactHits)...)
 
-	sort.Slice(hits, func(i, j int) bool {
-		if hits[i].score == hits[j].score {
-			return hits[i].createdAt > hits[j].createdAt
-		}
-		return hits[i].score < hits[j].score
-	})
+	sortHits(hits, orderBy)
 
 	if len(hits) > limit {
 		hits = hits[:limit]

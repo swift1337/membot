@@ -1,11 +1,21 @@
 package query
 
+// OrderBy selects how search hits are sorted.
+type OrderBy string
+
+const (
+	OrderByScore    OrderBy = "score"
+	OrderByDateDesc OrderBy = "date-desc"
+	OrderByDateAsc  OrderBy = "date-asc"
+)
+
 // Options configures a search query.
 type Options struct {
 	Query   string
 	Project string
 	Since   string
 	Limit   int
+	OrderBy OrderBy
 }
 
 // Response is the top-level search response.

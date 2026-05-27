@@ -57,6 +57,7 @@ func newRootCommand() *cobra.Command {
 	})
 	cmd.AddCommand(newIndexCommand(openStore))
 	cmd.AddCommand(newQueryCommand(openStore))
+	cmd.AddCommand(newMCPCommand(openStore))
 
 	return cmd
 }
@@ -143,10 +144,11 @@ func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 
 func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
 	var (
-		projectFlag string
-		sinceFlag   string
-		textFlag    bool
-		limitFlag   int
+		projectFlag  string
+		sinceFlag    string
+		textFlag     bool
+		limitFlag    int
+		orderByFlag  string
 	)
 
 	cmd := &cobra.Command{
@@ -171,6 +173,7 @@ func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 				Project: projectFlag,
 				Since:   sinceFlag,
 				Limit:   limitFlag,
+				OrderBy: query.OrderBy(orderByFlag),
 			})
 			if err != nil {
 				return err
@@ -188,6 +191,7 @@ func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 	cmd.Flags().StringVar(&sinceFlag, "since", "", "Only include results since this time (e.g. yesterday, 3h, 1 week)")
 	cmd.Flags().BoolVar(&textFlag, "text", false, "Render results as formatted text instead of JSON")
 	cmd.Flags().IntVar(&limitFlag, "limit", 20, "Maximum number of results")
+	cmd.Flags().StringVar(&orderByFlag, "order-by", "score", "Sort results by score, date-desc, or date-asc")
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "projects",

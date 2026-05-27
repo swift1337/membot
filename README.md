@@ -70,6 +70,47 @@ membot query "cursor transcripts"
 Search terms are matched with prefix full-text search. Results may include
 conversation hits, related files, and tool calls linked to matching messages.
 
+## MCP
+
+Run membot as an MCP server so Cursor (or any MCP client) can search indexed
+history without shelling out to the CLI:
+
+```sh
+membot mcp
+```
+
+The server speaks MCP over stdin/stdout and exits when the client disconnects.
+Use `--db` to point at a non-default database, same as other commands.
+
+### Cursor setup
+
+After `make install`, add this to your Cursor MCP config
+(`~/.cursor/mcp.json` or project `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "membot": {
+      "command": "membot",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+If `membot` is not on your `PATH`, use the full path to the binary instead
+(for example, the output of `go env GOPATH` plus `/bin/membot`).
+
+Index transcripts first (`membot index cursor`); the MCP server is read-only
+and serves whatever is already in the database.
+
+### Tools
+
+| Tool | Description |
+| --- | --- |
+| `search` | Full-text search over indexed history. Args: `query` (required), optional `project`, `since`, `limit`. Same behavior as `membot query`. |
+| `list_projects` | List indexed projects with conversation counts. Same behavior as `membot query projects`. |
+
 ## Development
 
 ```sh
