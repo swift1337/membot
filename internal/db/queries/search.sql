@@ -15,7 +15,37 @@ JOIN messages m ON m.id = f.rowid
 JOIN conversations c ON c.id = m.conversation_id
 LEFT JOIN projects p ON p.id = c.project_id
 LEFT JOIN source_files sf ON sf.id = m.source_file_id
-WHERE (@enable_project = 0 OR c.project_id = @project_id)
+WHERE (
+    @enable_project = 0
+    OR c.project_id = @project_id
+    OR (
+        @project_path != ''
+        AND EXISTS (
+            SELECT 1
+            FROM tool_calls tc
+            JOIN messages tm ON tm.id = tc.message_id
+            WHERE tm.conversation_id = c.id
+              AND (
+                tc.working_directory = @project_path
+                OR tc.working_directory LIKE @project_path || '/%'
+              )
+        )
+    )
+    OR (
+        @project_path != ''
+        AND EXISTS (
+            SELECT 1
+            FROM file_mentions fm
+            JOIN files fp ON fp.id = fm.file_id
+            JOIN messages fm_msg ON fm_msg.id = fm.message_id
+            WHERE fm_msg.conversation_id = c.id
+              AND (
+                coalesce(fp.normalized_path, fp.path) = @project_path
+                OR coalesce(fp.normalized_path, fp.path) LIKE @project_path || '/%'
+              )
+        )
+    )
+)
   AND (@enable_since = 0 OR coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') >= @since)
 ORDER BY score
 LIMIT @result_limit;
@@ -35,7 +65,41 @@ SELECT
 FROM memory_fts(@fts_query) f
 JOIN memory_items mi ON mi.id = f.rowid
 LEFT JOIN projects p ON p.id = mi.project_id
-WHERE (@enable_project = 0 OR mi.project_id = @project_id)
+LEFT JOIN conversations c ON c.id = mi.conversation_id
+WHERE (
+    @enable_project = 0
+    OR mi.project_id = @project_id
+    OR c.project_id = @project_id
+    OR (
+        @project_path != ''
+        AND c.id IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM tool_calls tc
+            JOIN messages tm ON tm.id = tc.message_id
+            WHERE tm.conversation_id = c.id
+              AND (
+                tc.working_directory = @project_path
+                OR tc.working_directory LIKE @project_path || '/%'
+              )
+        )
+    )
+    OR (
+        @project_path != ''
+        AND c.id IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM file_mentions fm
+            JOIN files fp ON fp.id = fm.file_id
+            JOIN messages fm_msg ON fm_msg.id = fm.message_id
+            WHERE fm_msg.conversation_id = c.id
+              AND (
+                coalesce(fp.normalized_path, fp.path) = @project_path
+                OR coalesce(fp.normalized_path, fp.path) LIKE @project_path || '/%'
+              )
+        )
+    )
+)
   AND (@enable_since = 0 OR coalesce(mi.happened_at, mi.created_at, '') >= @since)
 ORDER BY score
 LIMIT @result_limit;
@@ -56,7 +120,37 @@ FROM artifact_fts(@fts_query) f
 JOIN artifacts a ON a.id = f.rowid
 LEFT JOIN conversations c ON c.id = a.conversation_id
 LEFT JOIN projects p ON p.id = c.project_id
-WHERE (@enable_project = 0 OR c.project_id = @project_id)
+WHERE (
+    @enable_project = 0
+    OR c.project_id = @project_id
+    OR (
+        @project_path != ''
+        AND EXISTS (
+            SELECT 1
+            FROM tool_calls tc
+            JOIN messages tm ON tm.id = tc.message_id
+            WHERE tm.conversation_id = c.id
+              AND (
+                tc.working_directory = @project_path
+                OR tc.working_directory LIKE @project_path || '/%'
+              )
+        )
+    )
+    OR (
+        @project_path != ''
+        AND EXISTS (
+            SELECT 1
+            FROM file_mentions fm
+            JOIN files fp ON fp.id = fm.file_id
+            JOIN messages fm_msg ON fm_msg.id = fm.message_id
+            WHERE fm_msg.conversation_id = c.id
+              AND (
+                coalesce(fp.normalized_path, fp.path) = @project_path
+                OR coalesce(fp.normalized_path, fp.path) LIKE @project_path || '/%'
+              )
+        )
+    )
+)
   AND (@enable_since = 0 OR coalesce(a.created_at, '') >= @since)
 ORDER BY score
 LIMIT @result_limit;

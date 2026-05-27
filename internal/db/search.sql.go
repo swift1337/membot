@@ -26,16 +26,47 @@ FROM artifact_fts(?1) f
 JOIN artifacts a ON a.id = f.rowid
 LEFT JOIN conversations c ON c.id = a.conversation_id
 LEFT JOIN projects p ON p.id = c.project_id
-WHERE (?2 = 0 OR c.project_id = ?3)
-  AND (?4 = 0 OR coalesce(a.created_at, '') >= ?5)
+WHERE (
+    ?2 = 0
+    OR c.project_id = ?3
+    OR (
+        ?4 != ''
+        AND EXISTS (
+            SELECT 1
+            FROM tool_calls tc
+            JOIN messages tm ON tm.id = tc.message_id
+            WHERE tm.conversation_id = c.id
+              AND (
+                tc.working_directory = ?4
+                OR tc.working_directory LIKE ?4 || '/%'
+              )
+        )
+    )
+    OR (
+        ?4 != ''
+        AND EXISTS (
+            SELECT 1
+            FROM file_mentions fm
+            JOIN files fp ON fp.id = fm.file_id
+            JOIN messages fm_msg ON fm_msg.id = fm.message_id
+            WHERE fm_msg.conversation_id = c.id
+              AND (
+                coalesce(fp.normalized_path, fp.path) = ?4
+                OR coalesce(fp.normalized_path, fp.path) LIKE ?4 || '/%'
+              )
+        )
+    )
+)
+  AND (?5 = 0 OR coalesce(a.created_at, '') >= ?6)
 ORDER BY score
-LIMIT ?6
+LIMIT ?7
 `
 
 type SearchArtifactHitsParams struct {
 	FtsQuery      interface{}    `json:"fts_query"`
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
+	ProjectPath   interface{}    `json:"project_path"`
 	EnableSince   interface{}    `json:"enable_since"`
 	Since         sql.NullString `json:"since"`
 	ResultLimit   int64          `json:"result_limit"`
@@ -59,6 +90,7 @@ func (q *Queries) SearchArtifactHits(ctx context.Context, arg SearchArtifactHits
 		arg.FtsQuery,
 		arg.EnableProject,
 		arg.ProjectID,
+		arg.ProjectPath,
 		arg.EnableSince,
 		arg.Since,
 		arg.ResultLimit,
@@ -110,16 +142,51 @@ SELECT
 FROM memory_fts(?1) f
 JOIN memory_items mi ON mi.id = f.rowid
 LEFT JOIN projects p ON p.id = mi.project_id
-WHERE (?2 = 0 OR mi.project_id = ?3)
-  AND (?4 = 0 OR coalesce(mi.happened_at, mi.created_at, '') >= ?5)
+LEFT JOIN conversations c ON c.id = mi.conversation_id
+WHERE (
+    ?2 = 0
+    OR mi.project_id = ?3
+    OR c.project_id = ?3
+    OR (
+        ?4 != ''
+        AND c.id IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM tool_calls tc
+            JOIN messages tm ON tm.id = tc.message_id
+            WHERE tm.conversation_id = c.id
+              AND (
+                tc.working_directory = ?4
+                OR tc.working_directory LIKE ?4 || '/%'
+              )
+        )
+    )
+    OR (
+        ?4 != ''
+        AND c.id IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM file_mentions fm
+            JOIN files fp ON fp.id = fm.file_id
+            JOIN messages fm_msg ON fm_msg.id = fm.message_id
+            WHERE fm_msg.conversation_id = c.id
+              AND (
+                coalesce(fp.normalized_path, fp.path) = ?4
+                OR coalesce(fp.normalized_path, fp.path) LIKE ?4 || '/%'
+              )
+        )
+    )
+)
+  AND (?5 = 0 OR coalesce(mi.happened_at, mi.created_at, '') >= ?6)
 ORDER BY score
-LIMIT ?6
+LIMIT ?7
 `
 
 type SearchMemoryHitsParams struct {
 	FtsQuery      interface{}    `json:"fts_query"`
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
+	ProjectPath   interface{}    `json:"project_path"`
 	EnableSince   interface{}    `json:"enable_since"`
 	Since         sql.NullString `json:"since"`
 	ResultLimit   int64          `json:"result_limit"`
@@ -143,6 +210,7 @@ func (q *Queries) SearchMemoryHits(ctx context.Context, arg SearchMemoryHitsPara
 		arg.FtsQuery,
 		arg.EnableProject,
 		arg.ProjectID,
+		arg.ProjectPath,
 		arg.EnableSince,
 		arg.Since,
 		arg.ResultLimit,
@@ -196,16 +264,47 @@ JOIN messages m ON m.id = f.rowid
 JOIN conversations c ON c.id = m.conversation_id
 LEFT JOIN projects p ON p.id = c.project_id
 LEFT JOIN source_files sf ON sf.id = m.source_file_id
-WHERE (?2 = 0 OR c.project_id = ?3)
-  AND (?4 = 0 OR coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') >= ?5)
+WHERE (
+    ?2 = 0
+    OR c.project_id = ?3
+    OR (
+        ?4 != ''
+        AND EXISTS (
+            SELECT 1
+            FROM tool_calls tc
+            JOIN messages tm ON tm.id = tc.message_id
+            WHERE tm.conversation_id = c.id
+              AND (
+                tc.working_directory = ?4
+                OR tc.working_directory LIKE ?4 || '/%'
+              )
+        )
+    )
+    OR (
+        ?4 != ''
+        AND EXISTS (
+            SELECT 1
+            FROM file_mentions fm
+            JOIN files fp ON fp.id = fm.file_id
+            JOIN messages fm_msg ON fm_msg.id = fm.message_id
+            WHERE fm_msg.conversation_id = c.id
+              AND (
+                coalesce(fp.normalized_path, fp.path) = ?4
+                OR coalesce(fp.normalized_path, fp.path) LIKE ?4 || '/%'
+              )
+        )
+    )
+)
+  AND (?5 = 0 OR coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') >= ?6)
 ORDER BY score
-LIMIT ?6
+LIMIT ?7
 `
 
 type SearchMessageHitsParams struct {
 	FtsQuery      interface{}    `json:"fts_query"`
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
+	ProjectPath   interface{}    `json:"project_path"`
 	EnableSince   interface{}    `json:"enable_since"`
 	Since         sql.NullString `json:"since"`
 	ResultLimit   int64          `json:"result_limit"`
@@ -229,6 +328,7 @@ func (q *Queries) SearchMessageHits(ctx context.Context, arg SearchMessageHitsPa
 		arg.FtsQuery,
 		arg.EnableProject,
 		arg.ProjectID,
+		arg.ProjectPath,
 		arg.EnableSince,
 		arg.Since,
 		arg.ResultLimit,

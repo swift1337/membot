@@ -22,9 +22,9 @@ type FileContextOptions struct {
 
 // FileContextResponse is the top-level file context search response.
 type FileContextResponse struct {
-	Query   string             `json:"query"`
-	Project string             `json:"project,omitempty"`
-	Result  []FileContextItem  `json:"result"`
+	Query   string            `json:"query"`
+	Project string            `json:"project,omitempty"`
+	Result  []FileContextItem `json:"result"`
 }
 
 // FileContextItem is a conversation linked to a matched file path.
@@ -59,6 +59,7 @@ func SearchFileContext(ctx context.Context, st *store.Store, opts FileContextOpt
 	q := st.Queries()
 	enableProject := int64(0)
 	projectID := sql.NullInt64{}
+	projectPath := ""
 	resolvedProject := strings.TrimSpace(opts.Project)
 	if resolvedProject != "" {
 		project, err := resolveProject(ctx, q, resolvedProject)
@@ -67,6 +68,7 @@ func SearchFileContext(ctx context.Context, st *store.Store, opts FileContextOpt
 		}
 		enableProject = 1
 		projectID = sql.NullInt64{Int64: project.ID, Valid: true}
+		projectPath = projectCanonicalPath(project)
 	}
 
 	normalized := filepath.ToSlash(filepath.Clean(pattern))
@@ -76,6 +78,7 @@ func SearchFileContext(ctx context.Context, st *store.Store, opts FileContextOpt
 	rows, err := q.SearchFileContext(ctx, generateddb.SearchFileContextParams{
 		EnableProject: enableProject,
 		ProjectID:     projectID,
+		ProjectPath:   projectPath,
 		Basename:      basename,
 		PathContains:  sql.NullString{String: "%" + likePattern + "%", Valid: true},
 		PathSuffix:    sql.NullString{String: "%/" + escapeLikePattern(basename), Valid: basename != ""},

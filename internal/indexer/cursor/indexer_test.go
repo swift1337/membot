@@ -1,6 +1,10 @@
 package cursor
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestParseCursorTimestampFromInjectedTag(t *testing.T) {
 	t.Parallel()
@@ -77,6 +81,68 @@ func TestCompactToolArgumentsApplyPatch(t *testing.T) {
 	const want = `{"files":["/tmp/a.go"]}`
 	if got != want {
 		t.Fatalf("compactToolArguments() = %q, want %q", got, want)
+	}
+}
+
+func TestProjectsFromWorkspaceFile(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	workspaceDir := filepath.Join(root, "workspaces", "sandbox")
+	sandboxRepo := filepath.Join(root, "sandbox")
+	ledgerRepo := filepath.Join(root, "sandbox-ledger")
+	missingRepo := filepath.Join(root, "missing")
+	for _, dir := range []string{workspaceDir, sandboxRepo, ledgerRepo} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q): %v", dir, err)
+		}
+	}
+
+	workspacePath := filepath.Join(workspaceDir, "sandbox.code-workspace")
+	workspaceJSON := `{
+		"folders": [
+			{"path": "../../sandbox"},
+			{"path": "../../sandbox-ledger", "name": "ledger"},
+			{"path": "../../sandbox-ledger"},
+			{"path": "../../missing"},
+			// VS Code accepts JSONC in workspace files.
+		],
+		"settings": {
+			"example": "https://example.com/not-a-comment",
+		}
+	}`
+	if err := os.WriteFile(workspacePath, []byte(workspaceJSON), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", workspacePath, err)
+	}
+
+	got, err := projectsFromWorkspaceFile(workspacePath)
+	if err != nil {
+		t.Fatalf("projectsFromWorkspaceFile() error = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("projectsFromWorkspaceFile() len = %d, want 2: %#v", len(got), got)
+	}
+
+	want := []struct {
+		path string
+		name string
+	}{
+		{path: sandboxRepo, name: "sandbox"},
+		{path: ledgerRepo, name: "ledger"},
+	}
+	for i := range want {
+		if !got[i].CanonicalPath.Valid || got[i].CanonicalPath.String != want[i].path {
+			t.Fatalf("project %d path = %#v, want %q", i, got[i].CanonicalPath, want[i].path)
+		}
+		if !got[i].Name.Valid || got[i].Name.String != want[i].name {
+			t.Fatalf("project %d name = %#v, want %q", i, got[i].Name, want[i].name)
+		}
+		if got[i].Slug != pathSlug(want[i].path) {
+			t.Fatalf("project %d slug = %q, want %q", i, got[i].Slug, pathSlug(want[i].path))
+		}
+	}
+	if _, err := os.Stat(missingRepo); !os.IsNotExist(err) {
+		t.Fatalf("missing fixture unexpectedly exists: %v", err)
 	}
 }
 

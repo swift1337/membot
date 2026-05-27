@@ -1,6 +1,7 @@
 package query
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -252,7 +253,7 @@ func pluralize(value int, unit string) string {
 }
 
 func formatToolArguments(call ToolCall) string {
-	args := strings.TrimSpace(call.Arguments)
+	args := strings.TrimSpace(toolArgumentsString(call.Arguments))
 	if args == "" {
 		return ""
 	}
@@ -261,4 +262,21 @@ func formatToolArguments(call ToolCall) string {
 		return args
 	}
 	return args[:maxLen-3] + "..."
+}
+
+func toolArgumentsString(arguments any) string {
+	switch typed := arguments.(type) {
+	case nil:
+		return ""
+	case string:
+		return typed
+	case []byte:
+		return string(typed)
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			return fmt.Sprint(typed)
+		}
+		return string(encoded)
+	}
 }

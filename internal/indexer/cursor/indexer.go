@@ -56,6 +56,15 @@ type projectDir struct {
 	Name          sql.NullString
 }
 
+type workspaceFile struct {
+	Folders []workspaceFolder `json:"folders"`
+}
+
+type workspaceFolder struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
 type transcriptFile struct {
 	Project projectDir
 	Path    string
@@ -110,13 +119,19 @@ func Index(ctx context.Context, st *store.Store, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("upsert Cursor source: %w", err)
 	}
 
-	transcripts, result, err := discover(root)
+	projects, transcripts, result, err := discover(root)
 	if err != nil {
 		return Result{}, err
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	indexedProjects := make(map[string]struct{})
+	for _, project := range projects {
+		if err := upsertDiscoveredProject(ctx, st, project, now); err != nil {
+			return result, err
+		}
+		indexedProjects[project.Slug] = struct{}{}
+	}
 	for _, transcript := range transcripts {
 		select {
 		case <-ctx.Done():
@@ -142,13 +157,21 @@ func Index(ctx context.Context, st *store.Store, opts Options) (Result, error) {
 	return result, nil
 }
 
-func discover(root string) ([]transcriptFile, Result, error) {
+func discover(root string) ([]projectDir, []transcriptFile, Result, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, Result{}, fmt.Errorf("read Cursor projects root %s: %w", root, err)
+		return nil, nil, Result{}, fmt.Errorf("read Cursor projects root %s: %w", root, err)
 	}
 
+	projectsBySlug := make(map[string]projectDir)
 	var projects []projectDir
+	addProject := func(project projectDir) {
+		if _, ok := projectsBySlug[project.Slug]; ok {
+			return
+		}
+		projectsBySlug[project.Slug] = project
+		projects = append(projects, project)
+	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -157,7 +180,16 @@ func discover(root string) ([]transcriptFile, Result, error) {
 		if !looksLikeProjectDir(projectPath, entry.Name()) {
 			continue
 		}
-		projects = append(projects, newProjectDir(projectPath, entry.Name()))
+		project := newProjectDir(projectPath, entry.Name())
+		addProject(project)
+
+		workspaceProjects, err := discoverWorkspaceProjects(project)
+		if err != nil {
+			return nil, nil, Result{}, err
+		}
+		for _, workspaceProject := range workspaceProjects {
+			addProject(workspaceProject)
+		}
 	}
 	sort.Slice(projects, func(i, j int) bool {
 		return projects[i].Slug < projects[j].Slug
@@ -165,6 +197,9 @@ func discover(root string) ([]transcriptFile, Result, error) {
 
 	var transcripts []transcriptFile
 	for _, project := range projects {
+		if project.Path == "" {
+			continue
+		}
 		err := filepath.WalkDir(filepath.Join(project.Path, "agent-transcripts"), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -179,14 +214,14 @@ func discover(root string) ([]transcriptFile, Result, error) {
 			return nil
 		})
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return nil, Result{}, fmt.Errorf("discover transcripts in %s: %w", project.Path, err)
+			return nil, nil, Result{}, fmt.Errorf("discover transcripts in %s: %w", project.Path, err)
 		}
 	}
 	sort.Slice(transcripts, func(i, j int) bool {
 		return transcripts[i].Path < transcripts[j].Path
 	})
 
-	return transcripts, Result{
+	return projects, transcripts, Result{
 		ProjectsDiscovered: len(projects),
 		FilesDiscovered:    len(transcripts),
 	}, nil
@@ -213,6 +248,197 @@ func newProjectDir(path, slug string) projectDir {
 	}
 }
 
+func newProjectDirFromCanonicalPath(path string, name string) projectDir {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = filepath.Base(path)
+	}
+	return projectDir{
+		Slug:          pathSlug(path),
+		CanonicalPath: sql.NullString{String: path, Valid: path != ""},
+		Name:          sql.NullString{String: name, Valid: name != ""},
+	}
+}
+
+func discoverWorkspaceProjects(project projectDir) ([]projectDir, error) {
+	if !project.CanonicalPath.Valid {
+		return nil, nil
+	}
+
+	info, err := os.Stat(project.CanonicalPath.String)
+	if err != nil || !info.IsDir() {
+		return nil, nil
+	}
+
+	entries, err := os.ReadDir(project.CanonicalPath.String)
+	if err != nil {
+		return nil, fmt.Errorf("read workspace directory %s: %w", project.CanonicalPath.String, err)
+	}
+
+	var projects []projectDir
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".code-workspace") {
+			continue
+		}
+		workspacePath := filepath.Join(project.CanonicalPath.String, entry.Name())
+		workspaceProjects, err := projectsFromWorkspaceFile(workspacePath)
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, workspaceProjects...)
+	}
+	return projects, nil
+}
+
+func projectsFromWorkspaceFile(path string) ([]projectDir, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read workspace file %s: %w", path, err)
+	}
+
+	var workspace workspaceFile
+	if err := json.Unmarshal(data, &workspace); err != nil {
+		if cleanErr := json.Unmarshal(cleanWorkspaceJSON(data), &workspace); cleanErr != nil {
+			return nil, fmt.Errorf("parse workspace file %s: %w", path, err)
+		}
+	}
+
+	baseDir := filepath.Dir(path)
+	projects := make([]projectDir, 0, len(workspace.Folders))
+	seen := make(map[string]struct{})
+	for _, folder := range workspace.Folders {
+		folderPath := strings.TrimSpace(folder.Path)
+		if folderPath == "" || strings.Contains(folderPath, "://") {
+			continue
+		}
+		if !filepath.IsAbs(folderPath) {
+			folderPath = filepath.Join(baseDir, folderPath)
+		}
+		folderPath, err = filepath.Abs(folderPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolve workspace folder %s in %s: %w", folder.Path, path, err)
+		}
+		info, err := os.Stat(folderPath)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		slug := pathSlug(folderPath)
+		if _, ok := seen[slug]; ok {
+			continue
+		}
+		seen[slug] = struct{}{}
+		projects = append(projects, newProjectDirFromCanonicalPath(folderPath, folder.Name))
+	}
+	return projects, nil
+}
+
+func cleanWorkspaceJSON(data []byte) []byte {
+	return removeTrailingCommas(stripJSONComments(data))
+}
+
+func stripJSONComments(data []byte) []byte {
+	cleaned := make([]byte, 0, len(data))
+	inString := false
+	escaped := false
+	for i := 0; i < len(data); i++ {
+		ch := data[i]
+		if inString {
+			cleaned = append(cleaned, ch)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		if ch == '"' {
+			inString = true
+			cleaned = append(cleaned, ch)
+			continue
+		}
+		if ch == '/' && i+1 < len(data) {
+			switch data[i+1] {
+			case '/':
+				i += 2
+				for i < len(data) && data[i] != '\n' && data[i] != '\r' {
+					i++
+				}
+				if i < len(data) {
+					cleaned = append(cleaned, data[i])
+				}
+				continue
+			case '*':
+				i += 2
+				for i+1 < len(data) && (data[i] != '*' || data[i+1] != '/') {
+					if data[i] == '\n' || data[i] == '\r' {
+						cleaned = append(cleaned, data[i])
+					}
+					i++
+				}
+				if i+1 < len(data) {
+					i++
+				}
+				continue
+			}
+		}
+		cleaned = append(cleaned, ch)
+	}
+	return cleaned
+}
+
+func removeTrailingCommas(data []byte) []byte {
+	cleaned := make([]byte, 0, len(data))
+	inString := false
+	escaped := false
+	for i := 0; i < len(data); i++ {
+		ch := data[i]
+		if inString {
+			cleaned = append(cleaned, ch)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+
+		if ch == '"' {
+			inString = true
+			cleaned = append(cleaned, ch)
+			continue
+		}
+		if ch == ',' {
+			j := i + 1
+			for j < len(data) && (data[j] == ' ' || data[j] == '\t' || data[j] == '\n' || data[j] == '\r') {
+				j++
+			}
+			if j < len(data) && (data[j] == ']' || data[j] == '}') {
+				continue
+			}
+		}
+		cleaned = append(cleaned, ch)
+	}
+	return cleaned
+}
+
+func pathSlug(path string) string {
+	trimmed := strings.TrimPrefix(filepath.Clean(path), string(filepath.Separator))
+	return strings.ReplaceAll(trimmed, string(filepath.Separator), "-")
+}
+
 func inferCanonicalPath(slug string) sql.NullString {
 	prefixes := []string{"Users-", "Volumes-"}
 	for _, prefix := range prefixes {
@@ -224,6 +450,20 @@ func inferCanonicalPath(slug string) sql.NullString {
 		}
 	}
 	return sql.NullString{}
+}
+
+func upsertDiscoveredProject(ctx context.Context, st *store.Store, project projectDir, indexedAt string) error {
+	_, err := st.Queries().UpsertProject(ctx, db.UpsertProjectParams{
+		CanonicalPath: project.CanonicalPath,
+		Slug:          project.Slug,
+		Name:          project.Name,
+		FirstSeenAt:   sql.NullString{String: indexedAt, Valid: true},
+		LastSeenAt:    sql.NullString{String: indexedAt, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("upsert discovered project %s: %w", project.Slug, err)
+	}
+	return nil
 }
 
 func indexTranscript(

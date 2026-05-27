@@ -28,6 +28,11 @@ Index Cursor project transcripts from the default Cursor projects directory:
 membot index cursor
 ```
 
+The Cursor indexer records both transcript workspaces and repos referenced by
+`.code-workspace` files. Workspace folders can appear with `0 chats` when Cursor
+has no transcripts directly under that workspace, but related chats are still
+counted when tool working directories or file mentions point inside that repo.
+
 Use a custom Cursor projects root:
 
 ```sh
@@ -76,7 +81,8 @@ membot query "cursor transcripts"
 Search terms are matched with prefix full-text search. Adjacent terms are
 combined with `AND`; use uppercase `OR` for alternatives and parentheses for
 grouping. Results may include conversation hits, related files, and tool calls
-linked to matching messages.
+linked to matching messages. Tool call `arguments` are decoded as JSON objects
+or arrays when possible, with non-JSON values returned as strings.
 
 Find conversations that touched a specific file:
 
@@ -87,7 +93,9 @@ membot query files internal/mcp/tools.go --project membot
 
 File context search matches indexed file paths and basenames from code citations,
 inline paths, and tool calls (read, write, patch, glob, grep). Use `--project`
-when searching common filenames.
+when searching common filenames. A project filter matches conversations stored
+under that project as well as conversations that touched files or tool working
+directories inside the project's canonical path.
 
 ## MCP
 

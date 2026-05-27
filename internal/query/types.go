@@ -50,10 +50,10 @@ type RelatedFile struct {
 
 // ToolCall is a tool invocation linked to a matched conversation.
 type ToolCall struct {
-	ToolName          string `json:"tool_name"`
-	Arguments         string `json:"arguments,omitempty"`
-	WorkingDirectory  string `json:"working_directory,omitempty"`
-	Status            string `json:"status,omitempty"`
-	CreatedAt         string `json:"created_at,omitempty"`
-	MessageID         int64  `json:"message_id"`
+	ToolName         string `json:"tool_name"`
+	Arguments        any    `json:"arguments,omitempty"`
+	WorkingDirectory string `json:"working_directory,omitempty"`
+	Status           string `json:"status,omitempty"`
+	CreatedAt        string `json:"created_at,omitempty"`
+	MessageID        int64  `json:"message_id"`
 }

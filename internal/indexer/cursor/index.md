@@ -49,6 +49,14 @@ A directory is considered a Cursor project when either:
 1. It contains an `agent-transcripts/` subdirectory, or
 2. Its slug starts with `Users-` or `Volumes-`.
 
+Path-encoded projects are upserted even when they have no transcripts. If the
+canonical path contains `.code-workspace` files, the indexer also parses their
+`folders` entries and upserts each existing local folder as a project. This
+lets multi-repo Cursor workspaces expose repos such as `/Users/alice/Code/api`
+and `/Users/alice/Code/web` even when Cursor stores the actual transcript under
+one workspace slug. Workspace files are parsed as JSON with a small JSONC
+tolerance for comments and trailing commas.
+
 ### Transcript file layout
 
 Transcripts live under `agent-transcripts/` as **JSONL** files (one JSON object
@@ -180,6 +188,8 @@ CLI: `membot index cursor [--root PATH] [--reindex]`.
 ```
 discover(root)
   → list project dirs
+  → parse .code-workspace folder entries for multi-repo workspaces
+  → upsert discovered projects, even when they have zero transcript files
   → walk agent-transcripts/**/*.jsonl
   → for each file: indexTranscript (skip if unchanged)
        → upsert project, source_file, conversation
@@ -224,6 +234,19 @@ characters (newlines replaced with spaces).
 FTS: inserting/updating `messages.text` triggers `message_fts` via DB triggers
 (defined in `001_initial.sql`).
 
+Project summaries and project filters use two relationships:
+
+- **Transcript ownership**: the conversation's Cursor transcript is stored under
+  that project slug.
+- **Related work**: a tool working directory or indexed file mention is inside
+  the project's canonical path.
+
+This matters for multi-repo workspaces: Cursor may store a chat under an `ibc`
+workspace while the tool calls and file mentions point at
+`/Users/alice/Code/sandbox`. `membot query projects` counts that chat for the
+related `sandbox` project, and `--project sandbox` can find it through the file
+or working-directory relationship.
+
 ### File mention extraction
 
 After each message is stored, `extractFileMentions(text)` scans flattened text
@@ -263,6 +286,10 @@ ApplyPatch arguments are compacted to `{"files":["/path/a.go",...]}` in
 `tool_calls.arguments_json`. Shell commands store `working_directory` on the
 tool call row but do not create file mentions.
 
+Search responses decode `tool_calls.arguments_json` into JSON objects or arrays
+when possible. Invalid or non-JSON argument strings are returned unchanged as
+strings, so existing compacted/plain values remain representable.
+
 ### File context search
 
 Indexed file paths power a separate lookup path from full-text search:
@@ -278,6 +305,11 @@ MCP equivalent: `search_file_context` with `filename_or_path` and optional
 The query matches `files.basename`, path suffix, and path substring, then joins
 through `file_mentions` → `messages` → `conversations`. Results include
 conversation title, mention count, mention kinds, and a snippet.
+
+When `--project` is provided, file context search matches both files whose
+stored `project_id` is that project and file paths that live under the
+project's canonical path. This keeps workspace-folder repos searchable even when
+Cursor stored the transcript under a different project.
 
 Coverage limits (today):
 
@@ -308,8 +340,9 @@ same file are still indexed.
 }
 ```
 
-`projects_indexed` counts distinct project slugs that had at least one newly
-indexed file in this run (skipped files do not increment it).
+`projects_indexed` counts distinct discovered project slugs upserted in this
+run, including `.code-workspace` folders and projects with no transcript files.
+`files_indexed` / `files_skipped` describe transcript files only.
 
 ## Code map
 

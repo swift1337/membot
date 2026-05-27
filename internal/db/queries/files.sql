@@ -24,7 +24,17 @@ JOIN file_mentions fm ON fm.file_id = f.id
 JOIN messages m ON m.id = fm.message_id
 JOIN conversations c ON c.id = m.conversation_id
 LEFT JOIN projects p ON p.id = f.project_id
-WHERE (@enable_project = 0 OR f.project_id = @project_id)
+WHERE (
+  @enable_project = 0
+  OR f.project_id = @project_id
+  OR (
+    @project_path != ''
+    AND (
+      coalesce(f.normalized_path, f.path) = @project_path
+      OR coalesce(f.normalized_path, f.path) LIKE @project_path || '/%'
+    )
+  )
+)
   AND (
     (@basename != '' AND f.basename = @basename)
     OR coalesce(f.normalized_path, f.path) LIKE @path_contains

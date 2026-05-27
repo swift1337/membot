@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -68,6 +69,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 	q := st.Queries()
 	enableProject := int64(0)
 	projectID := sql.NullInt64{}
+	projectPath := ""
 	if strings.TrimSpace(opts.Project) != "" {
 		project, err := resolveProject(ctx, q, opts.Project)
 		if err != nil {
@@ -75,6 +77,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		}
 		enableProject = 1
 		projectID = sql.NullInt64{Int64: project.ID, Valid: true}
+		projectPath = projectCanonicalPath(project)
 	}
 
 	enableSince := int64(0)
@@ -89,6 +92,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		fts           string
 		enableProject int64
 		projectID     sql.NullInt64
+		projectPath   string
 		enableSince   int64
 		since         sql.NullString
 		limit         int64
@@ -96,6 +100,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		fts:           ftsQuery,
 		enableProject: enableProject,
 		projectID:     projectID,
+		projectPath:   projectPath,
 		enableSince:   enableSince,
 		since:         sinceParam,
 		limit:         perSourceLimit,
@@ -105,6 +110,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		FtsQuery:      searchParams.fts,
 		EnableProject: searchParams.enableProject,
 		ProjectID:     searchParams.projectID,
+		ProjectPath:   searchParams.projectPath,
 		EnableSince:   searchParams.enableSince,
 		Since:         searchParams.since,
 		ResultLimit:   searchParams.limit,
@@ -117,6 +123,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		FtsQuery:      searchParams.fts,
 		EnableProject: searchParams.enableProject,
 		ProjectID:     searchParams.projectID,
+		ProjectPath:   searchParams.projectPath,
 		EnableSince:   searchParams.enableSince,
 		Since:         searchParams.since,
 		ResultLimit:   searchParams.limit,
@@ -129,6 +136,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		FtsQuery:      searchParams.fts,
 		EnableProject: searchParams.enableProject,
 		ProjectID:     searchParams.projectID,
+		ProjectPath:   searchParams.projectPath,
 		EnableSince:   searchParams.enableSince,
 		Since:         searchParams.since,
 		ResultLimit:   searchParams.limit,
@@ -198,7 +206,7 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		for _, row := range toolCalls {
 			response.ToolCalls = append(response.ToolCalls, ToolCall{
 				ToolName:         row.ToolName,
-				Arguments:        row.ArgumentsJson,
+				Arguments:        decodeToolArguments(row.ArgumentsJson),
 				WorkingDirectory: row.WorkingDirectory,
 				Status:           row.Status,
 				CreatedAt:        row.CreatedAt,
@@ -208,6 +216,19 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 	}
 
 	return response, nil
+}
+
+func decodeToolArguments(value string) any {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	var raw json.RawMessage
+	if err := json.Unmarshal([]byte(value), &raw); err != nil {
+		return value
+	}
+	return raw
 }
 
 func hitsFromMessages(rows []generateddb.SearchMessageHitsRow) []hit {
