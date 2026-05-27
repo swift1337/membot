@@ -11,9 +11,9 @@ import (
 )
 
 const createFile = `-- name: CreateFile :one
-INSERT INTO files (project_id, path, normalized_path, kind)
-VALUES (?, ?, ?, ?)
-RETURNING id, project_id, path, normalized_path, kind
+INSERT INTO files (project_id, path, normalized_path, kind, basename)
+VALUES (?, ?, ?, ?, ?)
+RETURNING id, project_id, path, normalized_path, kind, basename
 `
 
 type CreateFileParams struct {
@@ -21,6 +21,7 @@ type CreateFileParams struct {
 	Path           string         `json:"path"`
 	NormalizedPath sql.NullString `json:"normalized_path"`
 	Kind           sql.NullString `json:"kind"`
+	Basename       sql.NullString `json:"basename"`
 }
 
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
@@ -29,6 +30,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		arg.Path,
 		arg.NormalizedPath,
 		arg.Kind,
+		arg.Basename,
 	)
 	var i File
 	err := row.Scan(
@@ -37,6 +39,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		&i.Path,
 		&i.NormalizedPath,
 		&i.Kind,
+		&i.Basename,
 	)
 	return i, err
 }
@@ -104,7 +107,7 @@ func (q *Queries) DeleteProject(ctx context.Context, id int64) error {
 }
 
 const getFile = `-- name: GetFile :one
-SELECT id, project_id, path, normalized_path, kind FROM files
+SELECT id, project_id, path, normalized_path, kind, basename FROM files
 WHERE id = ?
 `
 
@@ -117,6 +120,7 @@ func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
 		&i.Path,
 		&i.NormalizedPath,
 		&i.Kind,
+		&i.Basename,
 	)
 	return i, err
 }
@@ -164,7 +168,7 @@ func (q *Queries) GetProjectBySlug(ctx context.Context, slug string) (Project, e
 }
 
 const listProjectFiles = `-- name: ListProjectFiles :many
-SELECT id, project_id, path, normalized_path, kind FROM files
+SELECT id, project_id, path, normalized_path, kind, basename FROM files
 WHERE project_id = ?
 ORDER BY path
 `
@@ -184,6 +188,7 @@ func (q *Queries) ListProjectFiles(ctx context.Context, projectID sql.NullInt64)
 			&i.Path,
 			&i.NormalizedPath,
 			&i.Kind,
+			&i.Basename,
 		); err != nil {
 			return nil, err
 		}
@@ -285,12 +290,13 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 }
 
 const upsertFile = `-- name: UpsertFile :one
-INSERT INTO files (project_id, path, normalized_path, kind)
-VALUES (?, ?, ?, ?)
+INSERT INTO files (project_id, path, normalized_path, kind, basename)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(project_id, path) DO UPDATE SET
     normalized_path = excluded.normalized_path,
-    kind = excluded.kind
-RETURNING id, project_id, path, normalized_path, kind
+    kind = excluded.kind,
+    basename = excluded.basename
+RETURNING id, project_id, path, normalized_path, kind, basename
 `
 
 type UpsertFileParams struct {
@@ -298,6 +304,7 @@ type UpsertFileParams struct {
 	Path           string         `json:"path"`
 	NormalizedPath sql.NullString `json:"normalized_path"`
 	Kind           sql.NullString `json:"kind"`
+	Basename       sql.NullString `json:"basename"`
 }
 
 func (q *Queries) UpsertFile(ctx context.Context, arg UpsertFileParams) (File, error) {
@@ -306,6 +313,7 @@ func (q *Queries) UpsertFile(ctx context.Context, arg UpsertFileParams) (File, e
 		arg.Path,
 		arg.NormalizedPath,
 		arg.Kind,
+		arg.Basename,
 	)
 	var i File
 	err := row.Scan(
@@ -314,6 +322,7 @@ func (q *Queries) UpsertFile(ctx context.Context, arg UpsertFileParams) (File, e
 		&i.Path,
 		&i.NormalizedPath,
 		&i.Kind,
+		&i.Basename,
 	)
 	return i, err
 }

@@ -47,16 +47,17 @@ DELETE FROM projects
 WHERE id = ?;
 
 -- name: CreateFile :one
-INSERT INTO files (project_id, path, normalized_path, kind)
-VALUES (?, ?, ?, ?)
+INSERT INTO files (project_id, path, normalized_path, kind, basename)
+VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpsertFile :one
-INSERT INTO files (project_id, path, normalized_path, kind)
-VALUES (?, ?, ?, ?)
+INSERT INTO files (project_id, path, normalized_path, kind, basename)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(project_id, path) DO UPDATE SET
     normalized_path = excluded.normalized_path,
-    kind = excluded.kind
+    kind = excluded.kind,
+    basename = excluded.basename
 RETURNING *;
 
 -- name: GetFile :one

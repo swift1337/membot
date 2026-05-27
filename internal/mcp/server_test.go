@@ -7,6 +7,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/swift1337/membot/internal/query"
 	"github.com/swift1337/membot/internal/store"
 )
 
@@ -26,6 +27,7 @@ func TestMCPServerTools(t *testing.T) {
 	sdkServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "membot", Version: "test"}, nil)
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{Name: "search"}, srv.search)
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{Name: "list_projects"}, srv.listProjects)
+	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{Name: "search_file_context"}, srv.searchFileContext)
 
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "test"}, nil)
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
@@ -78,6 +80,31 @@ func TestMCPServerTools(t *testing.T) {
 	}
 	if searchOut.Result == nil {
 		t.Fatal("search result is nil, want empty slice")
+	}
+
+	fileCtxRes, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name: "search_file_context",
+		Arguments: map[string]any{
+			"filename_or_path": "cmd_localnet.sh",
+			"limit":            5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(search_file_context) error = %v", err)
+	}
+	if fileCtxRes.IsError {
+		t.Fatalf("search_file_context failed: %+v", fileCtxRes.Content)
+	}
+
+	var fileCtxOut query.FileContextResponse
+	if err := decodeStructuredOutput(fileCtxRes, &fileCtxOut); err != nil {
+		t.Fatalf("decode search_file_context output: %v", err)
+	}
+	if fileCtxOut.Result == nil {
+		t.Fatal("search_file_context result is nil, want empty slice")
+	}
+	if fileCtxOut.Query != "cmd_localnet.sh" {
+		t.Fatalf("query = %q, want cmd_localnet.sh", fileCtxOut.Query)
 	}
 }
 

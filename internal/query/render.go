@@ -13,6 +13,61 @@ var (
 	mutedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
 
+// RenderFileContextText formats a file context search response for terminal output.
+func RenderFileContextText(resp FileContextResponse) string {
+	if len(resp.Result) == 0 {
+		label := resp.Query
+		if resp.Project != "" {
+			label = fmt.Sprintf("%s in %s", resp.Query, resp.Project)
+		}
+		return mutedStyle.Render(fmt.Sprintf("No conversations found for %s.", label))
+	}
+
+	var b strings.Builder
+	heading := fmt.Sprintf("%d conversations for %s", len(resp.Result), resp.Query)
+	if resp.Project != "" {
+		heading = fmt.Sprintf("%s in %s", heading, resp.Project)
+	}
+	b.WriteString(headerStyle.Render(heading))
+	b.WriteString("\n\n")
+
+	var lastPath string
+	for i, item := range resp.Result {
+		if item.Path != lastPath {
+			if i > 0 {
+				b.WriteString("\n")
+			}
+			b.WriteString(headerStyle.Render(item.Path))
+			b.WriteString("\n")
+			lastPath = item.Path
+		}
+
+		kinds := ""
+		if len(item.MentionKinds) > 0 {
+			kinds = fmt.Sprintf(" (%d mentions: %s)", item.Mentions, strings.Join(item.MentionKinds, ", "))
+		} else if item.Mentions > 0 {
+			kinds = fmt.Sprintf(" (%d mentions)", item.Mentions)
+		}
+
+		line := fmt.Sprintf("- %s", item.ProjectName)
+		if item.LastMentionedAt != "" {
+			line = fmt.Sprintf("%s %s", line, mutedStyle.Render("["+relativeTime(item.LastMentionedAt)+"]"))
+		}
+		title := item.ConversationTitle
+		if title == "" {
+			title = fmt.Sprintf("conv:%d", item.ConversationID)
+		} else {
+			title = truncate(title, 48)
+		}
+		fmt.Fprintf(&b, "%s conv:%d %s%s\n", line, item.ConversationID, title, kinds)
+		if item.Snippet != "" {
+			fmt.Fprintf(&b, "  %s\n", formatSnippet(item.Snippet))
+		}
+	}
+
+	return b.String()
+}
+
 // RenderText formats a search response for terminal output.
 func RenderText(resp Response) string {
 	if len(resp.Result) == 0 {

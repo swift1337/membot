@@ -193,6 +193,49 @@ func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 	cmd.Flags().IntVar(&limitFlag, "limit", 20, "Maximum number of results")
 	cmd.Flags().StringVar(&orderByFlag, "order-by", "score", "Sort results by score, date-desc, or date-asc")
 
+	var (
+		filesProjectFlag string
+		filesTextFlag    bool
+		filesLimitFlag   int
+	)
+	filesCmd := &cobra.Command{
+		Use:     "files <filename-or-path>",
+		Aliases: []string{"f"},
+		Short:   "Find conversations that referenced a file by name or path",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+
+			db, err := openStore(cmd)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = db.Close()
+			}()
+
+			response, err := query.SearchFileContext(cmd.Context(), db, query.FileContextOptions{
+				FilenameOrPath: strings.Join(args, " "),
+				Project:        filesProjectFlag,
+				Limit:          filesLimitFlag,
+			})
+			if err != nil {
+				return err
+			}
+
+			if filesTextFlag {
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), query.RenderFileContextText(response))
+				return err
+			}
+			return writeJSON(cmd, response)
+		},
+	}
+	filesCmd.Flags().StringVarP(&filesProjectFlag, "project", "p", "", "Filter by project name, slug, or path")
+	filesCmd.Flags().BoolVar(&filesTextFlag, "text", false, "Render results as formatted text instead of JSON")
+	filesCmd.Flags().IntVar(&filesLimitFlag, "limit", 20, "Maximum number of results")
+	cmd.AddCommand(filesCmd)
+
 	cmd.AddCommand(&cobra.Command{
 		Use:   "projects",
 		Short: "List indexed projects as JSON",

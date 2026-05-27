@@ -70,6 +70,17 @@ membot query "cursor transcripts"
 Search terms are matched with prefix full-text search. Results may include
 conversation hits, related files, and tool calls linked to matching messages.
 
+Find conversations that touched a specific file:
+
+```sh
+membot query files cmd_localnet.sh --project sandbox --text
+membot query files internal/mcp/tools.go --project membot
+```
+
+File context search matches indexed file paths and basenames from code citations,
+inline paths, and tool calls (read, write, patch, glob, grep). Use `--project`
+when searching common filenames.
+
 ## MCP
 
 Run membot as an MCP server so Cursor (or any MCP client) can search indexed
@@ -108,8 +119,9 @@ and serves whatever is already in the database.
 
 | Tool | Description |
 | --- | --- |
-| `search` | Full-text search over indexed history. Args: `query` (required), optional `project`, `since`, `limit`. Same behavior as `membot query`. |
-| `list_projects` | List indexed projects with conversation counts. Same behavior as `membot query projects`. |
+| `search` | Full-text search over messages, memory, and artifacts. Args: `query` (required), optional `project`, `since`, `limit`. Same as `membot query`. |
+| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `limit`. Same as `membot query files`. |
+| `list_projects` | List indexed workspaces with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
 
 ## Development
 

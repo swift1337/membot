@@ -70,6 +70,7 @@ type File struct {
 	Path           string         `json:"path"`
 	NormalizedPath sql.NullString `json:"normalized_path"`
 	Kind           sql.NullString `json:"kind"`
+	Basename       sql.NullString `json:"basename"`
 }
 
 type FileMention struct {

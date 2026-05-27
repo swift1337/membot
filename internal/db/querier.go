@@ -93,6 +93,7 @@ type Querier interface {
 	ListToolCallsForConversations(ctx context.Context, arg ListToolCallsForConversationsParams) ([]ListToolCallsForConversationsRow, error)
 	ListTopics(ctx context.Context) ([]Topic, error)
 	SearchArtifactHits(ctx context.Context, arg SearchArtifactHitsParams) ([]SearchArtifactHitsRow, error)
+	SearchFileContext(ctx context.Context, arg SearchFileContextParams) ([]SearchFileContextRow, error)
 	SearchMemoryHits(ctx context.Context, arg SearchMemoryHitsParams) ([]SearchMemoryHitsRow, error)
 	SearchMessageHits(ctx context.Context, arg SearchMessageHitsParams) ([]SearchMessageHitsRow, error)
 	UnlinkConversationTopic(ctx context.Context, arg UnlinkConversationTopicParams) error

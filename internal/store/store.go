@@ -148,6 +148,56 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		}
 	}
 
+	if err := s.backfillFileBasenames(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Store) backfillFileBasenames(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, path, normalized_path
+FROM files
+WHERE basename IS NULL OR basename = ''`)
+	if err != nil {
+		return fmt.Errorf("list files missing basename: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	type fileRow struct {
+		id             int64
+		path           string
+		normalizedPath sql.NullString
+	}
+	var pending []fileRow
+	for rows.Next() {
+		var row fileRow
+		if err := rows.Scan(&row.id, &row.path, &row.normalizedPath); err != nil {
+			return fmt.Errorf("scan file row: %w", err)
+		}
+		pending = append(pending, row)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate files missing basename: %w", err)
+	}
+
+	for _, row := range pending {
+		source := row.path
+		if row.normalizedPath.Valid && row.normalizedPath.String != "" {
+			source = row.normalizedPath.String
+		}
+		base := filepath.Base(filepath.FromSlash(source))
+		if base == "" || base == "." {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, `UPDATE files SET basename = ? WHERE id = ?`, base, row.id); err != nil {
+			return fmt.Errorf("backfill basename for file %d: %w", row.id, err)
+		}
+	}
+
 	return nil
 }
 

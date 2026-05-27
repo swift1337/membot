@@ -21,14 +21,24 @@ func Run(ctx context.Context, st *store.Store) error {
 	}, nil)
 
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{
-		Name:        "search",
-		Description: "Search indexed assistant history (messages, memory, artifacts)",
+		Name: "search",
+		Description: "Full-text search over indexed assistant history: conversation messages, " +
+			"memory items, and artifacts. Use when you have keywords or topics, not when you " +
+			"already know a specific file path or filename.",
 	}, srv.search)
 
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{
-		Name:        "list_projects",
-		Description: "List indexed projects with conversation counts",
+		Name: "list_projects",
+		Description: "List indexed Cursor workspaces with conversation counts. Use the returned " +
+			"name, slug, or path as the project filter in search and search_file_context.",
 	}, srv.listProjects)
+
+	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{
+		Name: "search_file_context",
+		Description: "Find conversations that referenced, read, edited, searched, or patched a " +
+			"file by filename or path. Use when you know a file such as cmd_localnet.sh and " +
+			"need prior assistant context about it.",
+	}, srv.searchFileContext)
 
 	if err := sdkServer.Run(ctx, &sdkmcp.StdioTransport{}); err != nil {
 		return fmt.Errorf("mcp server: %w", err)

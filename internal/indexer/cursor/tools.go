@@ -68,6 +68,7 @@ func indexToolCall(
 			Path:           mention.Path,
 			NormalizedPath: sql.NullString{String: normalizedFilePath(mention.Path), Valid: true},
 			Kind:           sql.NullString{String: "tool", Valid: true},
+			Basename:       fileBasename(mention.Path),
 		})
 		if err != nil {
 			return err

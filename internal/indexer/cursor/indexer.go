@@ -425,6 +425,7 @@ func indexFileMentions(
 			Path:           mention.Path,
 			NormalizedPath: sql.NullString{String: normalizedFilePath(mention.Path), Valid: true},
 			Kind:           sql.NullString{String: "mentioned", Valid: true},
+			Basename:       fileBasename(mention.Path),
 		})
 		if err != nil {
 			return err
@@ -514,6 +515,14 @@ func cleanMentionPath(candidate string) string {
 
 func normalizedFilePath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
+}
+
+func fileBasename(path string) sql.NullString {
+	base := filepath.Base(normalizedFilePath(path))
+	if base == "" || base == "." || base == "/" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: base, Valid: true}
 }
 
 func truncateMentionSnippet(text string) string {

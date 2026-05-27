@@ -11,10 +11,10 @@ import (
 )
 
 type searchInput struct {
-	Query   string `json:"query" jsonschema:"search query string"`
-	Project string `json:"project,omitempty" jsonschema:"filter by project name slug or path"`
-	Since   string `json:"since,omitempty" jsonschema:"only include results since this time (e.g. yesterday 3h 1 week)"`
-	Limit   int    `json:"limit,omitempty" jsonschema:"maximum number of results (default 20 max 100)"`
+	Query   string `json:"query" jsonschema:"required keywords or phrase to match in message memory and artifact text"`
+	Project string `json:"project,omitempty" jsonschema:"optional project name slug or filesystem path to narrow results"`
+	Since   string `json:"since,omitempty" jsonschema:"optional time window such as yesterday 3h or 1 week"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"maximum hits to return default 20 max 100"`
 }
 
 func (s *server) search(ctx context.Context, _ *sdkmcp.CallToolRequest, in searchInput) (*sdkmcp.CallToolResult, query.Response, error) {
@@ -30,8 +30,26 @@ func (s *server) search(ctx context.Context, _ *sdkmcp.CallToolRequest, in searc
 	return nil, resp, nil
 }
 
+type searchFileContextInput struct {
+	FilenameOrPath string `json:"filename_or_path" jsonschema:"required filename basename or path fragment such as cmd_localnet.sh or internal/mcp"`
+	Project        string `json:"project,omitempty" jsonschema:"optional but recommended project name slug or path when filenames are common"`
+	Limit          int    `json:"limit,omitempty" jsonschema:"maximum conversation hits to return default 20 max 100"`
+}
+
+func (s *server) searchFileContext(ctx context.Context, _ *sdkmcp.CallToolRequest, in searchFileContextInput) (*sdkmcp.CallToolResult, query.FileContextResponse, error) {
+	resp, err := query.SearchFileContext(ctx, s.store, query.FileContextOptions{
+		FilenameOrPath: in.FilenameOrPath,
+		Project:        in.Project,
+		Limit:          in.Limit,
+	})
+	if err != nil {
+		return nil, query.FileContextResponse{}, fmt.Errorf("search file context: %w", err)
+	}
+	return nil, resp, nil
+}
+
 type listProjectsOutput struct {
-	Projects []generateddb.ListProjectSummariesRow `json:"projects" jsonschema:"indexed projects"`
+	Projects []generateddb.ListProjectSummariesRow `json:"projects" jsonschema:"indexed workspaces with slug path and conversation counts"`
 }
 
 func (s *server) listProjects(ctx context.Context, _ *sdkmcp.CallToolRequest, _ struct{}) (*sdkmcp.CallToolResult, listProjectsOutput, error) {
