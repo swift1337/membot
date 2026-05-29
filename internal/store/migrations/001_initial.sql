@@ -83,7 +83,6 @@ CREATE TABLE IF NOT EXISTS tool_calls (
     arguments_json TEXT,
     working_directory TEXT,
     status TEXT,
-    output_artifact_id INTEGER,
     created_at TEXT
 );
 
@@ -93,6 +92,7 @@ CREATE TABLE IF NOT EXISTS files (
     path TEXT NOT NULL,
     normalized_path TEXT,
     kind TEXT,
+    basename TEXT,
     UNIQUE(project_id, path)
 );
 
@@ -128,6 +128,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_project_time ON conversations(proje
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_seq ON messages(conversation_id, seq);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_file_mentions_file ON file_mentions(file_id);
+CREATE INDEX IF NOT EXISTS idx_files_project_basename ON files(project_id, basename);
 
 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
     INSERT INTO message_fts(rowid, text) VALUES (new.id, coalesce(new.text, ''));
@@ -141,4 +142,3 @@ CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
     INSERT INTO message_fts(message_fts, rowid, text) VALUES('delete', old.id, coalesce(old.text, ''));
     INSERT INTO message_fts(rowid, text) VALUES (new.id, coalesce(new.text, ''));
 END;
-
