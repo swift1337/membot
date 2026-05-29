@@ -75,17 +75,6 @@ CREATE TABLE IF NOT EXISTS message_blocks (
     UNIQUE(message_id, seq)
 );
 
-CREATE TABLE IF NOT EXISTS artifacts (
-    id INTEGER PRIMARY KEY,
-    source_file_id INTEGER REFERENCES source_files(id),
-    conversation_id INTEGER REFERENCES conversations(id),
-    path TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    text TEXT,
-    sha256 TEXT,
-    created_at TEXT
-);
-
 CREATE TABLE IF NOT EXISTS tool_calls (
     id INTEGER PRIMARY KEY,
     message_id INTEGER NOT NULL REFERENCES messages(id),
@@ -94,7 +83,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
     arguments_json TEXT,
     working_directory TEXT,
     status TEXT,
-    output_artifact_id INTEGER REFERENCES artifacts(id),
+    output_artifact_id INTEGER,
     created_at TEXT
 );
 
@@ -118,80 +107,6 @@ CREATE TABLE IF NOT EXISTS file_mentions (
     snippet TEXT
 );
 
-CREATE TABLE IF NOT EXISTS patches (
-    id INTEGER PRIMARY KEY,
-    tool_call_id INTEGER REFERENCES tool_calls(id),
-    message_id INTEGER REFERENCES messages(id),
-    file_id INTEGER REFERENCES files(id),
-    patch_kind TEXT NOT NULL,
-    raw_patch TEXT NOT NULL,
-    added_lines INTEGER,
-    removed_lines INTEGER,
-    parsed_ok INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS memory_items (
-    id INTEGER PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id),
-    conversation_id INTEGER REFERENCES conversations(id),
-    message_id INTEGER REFERENCES messages(id),
-    kind TEXT NOT NULL,
-    title TEXT,
-    body TEXT NOT NULL,
-    confidence REAL NOT NULL DEFAULT 1.0,
-    importance INTEGER NOT NULL DEFAULT 0,
-    happened_at TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    evidence_json TEXT
-);
-
-CREATE TABLE IF NOT EXISTS task_items (
-    id INTEGER PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id),
-    conversation_id INTEGER REFERENCES conversations(id),
-    memory_item_id INTEGER REFERENCES memory_items(id),
-    title TEXT NOT NULL,
-    step_number INTEGER,
-    status TEXT NOT NULL,
-    body TEXT,
-    evidence_message_id INTEGER REFERENCES messages(id),
-    updated_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS entities (
-    id INTEGER PRIMARY KEY,
-    type TEXT NOT NULL,
-    value TEXT NOT NULL,
-    label TEXT,
-    normalized_value TEXT NOT NULL,
-    first_seen_at TEXT,
-    last_seen_at TEXT,
-    UNIQUE(type, normalized_value)
-);
-
-CREATE TABLE IF NOT EXISTS entity_mentions (
-    id INTEGER PRIMARY KEY,
-    entity_id INTEGER NOT NULL REFERENCES entities(id),
-    message_id INTEGER REFERENCES messages(id),
-    memory_item_id INTEGER REFERENCES memory_items(id),
-    project_id INTEGER REFERENCES projects(id),
-    context TEXT,
-    confidence REAL NOT NULL DEFAULT 1.0
-);
-
-CREATE TABLE IF NOT EXISTS topics (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    normalized_name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS conversation_topics (
-    conversation_id INTEGER NOT NULL REFERENCES conversations(id),
-    topic_id INTEGER NOT NULL REFERENCES topics(id),
-    score REAL NOT NULL DEFAULT 1.0,
-    PRIMARY KEY (conversation_id, topic_id)
-);
-
 CREATE TABLE IF NOT EXISTS parse_errors (
     id INTEGER PRIMARY KEY,
     source_file_id INTEGER REFERENCES source_files(id),
@@ -209,28 +124,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
     tokenize='unicode61'
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
-    title,
-    body,
-    content='memory_items',
-    content_rowid='id',
-    tokenize='unicode61'
-);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS artifact_fts USING fts5(
-    text,
-    content='artifacts',
-    content_rowid='id',
-    tokenize='unicode61'
-);
-
 CREATE INDEX IF NOT EXISTS idx_conversations_project_time ON conversations(project_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_seq ON messages(conversation_id, seq);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
-CREATE INDEX IF NOT EXISTS idx_memory_project_kind_time ON memory_items(project_id, kind, happened_at DESC);
-CREATE INDEX IF NOT EXISTS idx_task_project_status ON task_items(project_id, status, step_number);
-CREATE INDEX IF NOT EXISTS idx_entities_type_value ON entities(type, normalized_value);
-CREATE INDEX IF NOT EXISTS idx_entity_mentions_project ON entity_mentions(project_id, entity_id);
 CREATE INDEX IF NOT EXISTS idx_file_mentions_file ON file_mentions(file_id);
 
 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
@@ -246,28 +142,3 @@ CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
     INSERT INTO message_fts(rowid, text) VALUES (new.id, coalesce(new.text, ''));
 END;
 
-CREATE TRIGGER IF NOT EXISTS memory_items_ai AFTER INSERT ON memory_items BEGIN
-    INSERT INTO memory_fts(rowid, title, body) VALUES (new.id, coalesce(new.title, ''), new.body);
-END;
-
-CREATE TRIGGER IF NOT EXISTS memory_items_ad AFTER DELETE ON memory_items BEGIN
-    INSERT INTO memory_fts(memory_fts, rowid, title, body) VALUES('delete', old.id, coalesce(old.title, ''), old.body);
-END;
-
-CREATE TRIGGER IF NOT EXISTS memory_items_au AFTER UPDATE ON memory_items BEGIN
-    INSERT INTO memory_fts(memory_fts, rowid, title, body) VALUES('delete', old.id, coalesce(old.title, ''), old.body);
-    INSERT INTO memory_fts(rowid, title, body) VALUES (new.id, coalesce(new.title, ''), new.body);
-END;
-
-CREATE TRIGGER IF NOT EXISTS artifacts_ai AFTER INSERT ON artifacts BEGIN
-    INSERT INTO artifact_fts(rowid, text) VALUES (new.id, coalesce(new.text, ''));
-END;
-
-CREATE TRIGGER IF NOT EXISTS artifacts_ad AFTER DELETE ON artifacts BEGIN
-    INSERT INTO artifact_fts(artifact_fts, rowid, text) VALUES('delete', old.id, coalesce(old.text, ''));
-END;
-
-CREATE TRIGGER IF NOT EXISTS artifacts_au AFTER UPDATE ON artifacts BEGIN
-    INSERT INTO artifact_fts(artifact_fts, rowid, text) VALUES('delete', old.id, coalesce(old.text, ''));
-    INSERT INTO artifact_fts(rowid, text) VALUES (new.id, coalesce(new.text, ''));
-END;

@@ -22,10 +22,10 @@ func Run(ctx context.Context, st *store.Store) error {
 
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{
 		Name: "search",
-		Description: "Full-text search over indexed assistant history: conversation messages, " +
-			"memory items, and artifacts. Use when you have keywords or topics, not when you " +
-			"already know a specific file path or filename. Query supports AND, OR, and " +
-			"parentheses, for example: (sqlite OR sqlc) AND migration.",
+		Description: "Full-text search over indexed assistant conversation messages. Use when " +
+			"you have keywords or topics, not when you already know a specific file path or " +
+			"filename. Query supports AND, OR, and parentheses, for example: " +
+			"(sqlite OR sqlc) AND migration.",
 	}, srv.search)
 
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{

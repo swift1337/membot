@@ -76,7 +76,7 @@ func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 		Use:     "query [query string]",
 		Aliases: []string{"q"},
 		Short:   "Query indexed memory as JSON",
-		Long: `Search indexed messages, memory, and artifacts.
+		Long: `Search indexed assistant conversation messages.
 
 Query syntax supports AND, OR, and parentheses. Adjacent terms are AND'd.
 Use single quotes in the shell when the query contains parentheses.

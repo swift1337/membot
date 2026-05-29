@@ -8,21 +8,6 @@ import (
 	"database/sql"
 )
 
-type Artifact struct {
-	ID             int64          `json:"id"`
-	SourceFileID   sql.NullInt64  `json:"source_file_id"`
-	ConversationID sql.NullInt64  `json:"conversation_id"`
-	Path           string         `json:"path"`
-	Kind           string         `json:"kind"`
-	Text           sql.NullString `json:"text"`
-	Sha256         sql.NullString `json:"sha256"`
-	CreatedAt      sql.NullString `json:"created_at"`
-}
-
-type ArtifactFt struct {
-	Text string `json:"text"`
-}
-
 type Conversation struct {
 	ID               int64          `json:"id"`
 	SourceID         int64          `json:"source_id"`
@@ -36,32 +21,6 @@ type Conversation struct {
 	MessageCount     int64          `json:"message_count"`
 	IsSubagent       int64          `json:"is_subagent"`
 	RawPath          string         `json:"raw_path"`
-}
-
-type ConversationTopic struct {
-	ConversationID int64   `json:"conversation_id"`
-	TopicID        int64   `json:"topic_id"`
-	Score          float64 `json:"score"`
-}
-
-type Entity struct {
-	ID              int64          `json:"id"`
-	Type            string         `json:"type"`
-	Value           string         `json:"value"`
-	Label           sql.NullString `json:"label"`
-	NormalizedValue string         `json:"normalized_value"`
-	FirstSeenAt     sql.NullString `json:"first_seen_at"`
-	LastSeenAt      sql.NullString `json:"last_seen_at"`
-}
-
-type EntityMention struct {
-	ID           int64          `json:"id"`
-	EntityID     int64          `json:"entity_id"`
-	MessageID    sql.NullInt64  `json:"message_id"`
-	MemoryItemID sql.NullInt64  `json:"memory_item_id"`
-	ProjectID    sql.NullInt64  `json:"project_id"`
-	Context      sql.NullString `json:"context"`
-	Confidence   float64        `json:"confidence"`
 }
 
 type File struct {
@@ -82,26 +41,6 @@ type FileMention struct {
 	LineStart   sql.NullInt64  `json:"line_start"`
 	LineEnd     sql.NullInt64  `json:"line_end"`
 	Snippet     sql.NullString `json:"snippet"`
-}
-
-type MemoryFt struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-}
-
-type MemoryItem struct {
-	ID             int64          `json:"id"`
-	ProjectID      sql.NullInt64  `json:"project_id"`
-	ConversationID sql.NullInt64  `json:"conversation_id"`
-	MessageID      sql.NullInt64  `json:"message_id"`
-	Kind           string         `json:"kind"`
-	Title          sql.NullString `json:"title"`
-	Body           string         `json:"body"`
-	Confidence     float64        `json:"confidence"`
-	Importance     int64          `json:"importance"`
-	HappenedAt     sql.NullString `json:"happened_at"`
-	CreatedAt      string         `json:"created_at"`
-	EvidenceJson   sql.NullString `json:"evidence_json"`
 }
 
 type Message struct {
@@ -140,18 +79,6 @@ type ParseError struct {
 	CreatedAt     string         `json:"created_at"`
 }
 
-type Patch struct {
-	ID           int64         `json:"id"`
-	ToolCallID   sql.NullInt64 `json:"tool_call_id"`
-	MessageID    sql.NullInt64 `json:"message_id"`
-	FileID       sql.NullInt64 `json:"file_id"`
-	PatchKind    string        `json:"patch_kind"`
-	RawPatch     string        `json:"raw_patch"`
-	AddedLines   sql.NullInt64 `json:"added_lines"`
-	RemovedLines sql.NullInt64 `json:"removed_lines"`
-	ParsedOk     int64         `json:"parsed_ok"`
-}
-
 type Project struct {
 	ID            int64          `json:"id"`
 	CanonicalPath sql.NullString `json:"canonical_path"`
@@ -185,19 +112,6 @@ type SourceFile struct {
 	ParserVersion string         `json:"parser_version"`
 }
 
-type TaskItem struct {
-	ID                int64          `json:"id"`
-	ProjectID         sql.NullInt64  `json:"project_id"`
-	ConversationID    sql.NullInt64  `json:"conversation_id"`
-	MemoryItemID      sql.NullInt64  `json:"memory_item_id"`
-	Title             string         `json:"title"`
-	StepNumber        sql.NullInt64  `json:"step_number"`
-	Status            string         `json:"status"`
-	Body              sql.NullString `json:"body"`
-	EvidenceMessageID sql.NullInt64  `json:"evidence_message_id"`
-	UpdatedAt         sql.NullString `json:"updated_at"`
-}
-
 type ToolCall struct {
 	ID               int64          `json:"id"`
 	MessageID        int64          `json:"message_id"`
@@ -206,12 +120,5 @@ type ToolCall struct {
 	ArgumentsJson    sql.NullString `json:"arguments_json"`
 	WorkingDirectory sql.NullString `json:"working_directory"`
 	Status           sql.NullString `json:"status"`
-	OutputArtifactID sql.NullInt64  `json:"output_artifact_id"`
 	CreatedAt        sql.NullString `json:"created_at"`
-}
-
-type Topic struct {
-	ID             int64  `json:"id"`
-	Name           string `json:"name"`
-	NormalizedName string `json:"normalized_name"`
 }

@@ -103,11 +103,11 @@ Return JSON for scripts:
 membot query "cursor transcripts"
 ```
 
-Search terms are matched with prefix full-text search. Adjacent terms are
-combined with `AND`; use uppercase `OR` for alternatives and parentheses for
-grouping. Results may include conversation hits, related files, and tool calls
-linked to matching messages. Tool call `arguments` are decoded as JSON objects
-or arrays when possible, with non-JSON values returned as strings.
+Search terms are matched against indexed conversation messages with prefix
+full-text search. Adjacent terms are combined with `AND`; use uppercase `OR` for
+alternatives and parentheses for grouping. Results may include related files and
+tool calls linked to matching messages. Tool call `arguments` are decoded as JSON
+objects or arrays when possible, with non-JSON values returned as strings.
 
 Find conversations that touched a specific file:
 
@@ -160,7 +160,7 @@ and serves whatever is already in the database.
 
 | Tool | Description |
 | --- | --- |
-| `search` | Full-text search over messages, memory, and artifacts. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor` or `claude`), `since`, `limit`. Same as `membot query`. |
+| `search` | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor` or `claude`), `since`, `limit`. Same as `membot query`. |
 | `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor` or `claude`), `limit`. Same as `membot query files`. |
 | `list_projects` | List indexed workspaces with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
 

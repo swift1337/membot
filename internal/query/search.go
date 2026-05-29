@@ -129,40 +129,8 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		return Response{}, fmt.Errorf("search messages: %w", err)
 	}
 
-	memoryHits, err := q.SearchMemoryHits(ctx, generateddb.SearchMemoryHitsParams{
-		FtsQuery:      searchParams.fts,
-		EnableProject: searchParams.enableProject,
-		ProjectID:     searchParams.projectID,
-		ProjectPath:   searchParams.projectPath,
-		EnableAgent:   searchParams.enableAgent,
-		Agent:         searchParams.agent,
-		EnableSince:   searchParams.enableSince,
-		Since:         searchParams.since,
-		ResultLimit:   searchParams.limit,
-	})
-	if err != nil {
-		return Response{}, fmt.Errorf("search memory: %w", err)
-	}
-
-	artifactHits, err := q.SearchArtifactHits(ctx, generateddb.SearchArtifactHitsParams{
-		FtsQuery:      searchParams.fts,
-		EnableProject: searchParams.enableProject,
-		ProjectID:     searchParams.projectID,
-		ProjectPath:   searchParams.projectPath,
-		EnableAgent:   searchParams.enableAgent,
-		Agent:         searchParams.agent,
-		EnableSince:   searchParams.enableSince,
-		Since:         searchParams.since,
-		ResultLimit:   searchParams.limit,
-	})
-	if err != nil {
-		return Response{}, fmt.Errorf("search artifacts: %w", err)
-	}
-
-	hits := make([]hit, 0, len(messageHits)+len(memoryHits)+len(artifactHits))
+	hits := make([]hit, 0, len(messageHits))
 	hits = append(hits, hitsFromMessages(messageHits)...)
-	hits = append(hits, hitsFromMemory(memoryHits)...)
-	hits = append(hits, hitsFromArtifacts(artifactHits)...)
 
 	sortHits(hits, orderBy)
 
@@ -264,42 +232,6 @@ func hitsFromMessages(rows []generateddb.SearchMessageHitsRow) []hit {
 	return out
 }
 
-func hitsFromMemory(rows []generateddb.SearchMemoryHitsRow) []hit {
-	out := make([]hit, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, hit{
-			resultType:     row.ResultType,
-			score:          normalizeScore(row.Score),
-			projectName:    row.ProjectName,
-			projectDir:     row.ProjectDir,
-			conversationID: row.ConversationID,
-			entityID:       row.EntityID,
-			role:           row.Role,
-			createdAt:      row.CreatedAt,
-			snippet:        snippetText(row.Snippet),
-		})
-	}
-	return out
-}
-
-func hitsFromArtifacts(rows []generateddb.SearchArtifactHitsRow) []hit {
-	out := make([]hit, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, hit{
-			resultType:     row.ResultType,
-			score:          normalizeScore(row.Score),
-			projectName:    row.ProjectName,
-			projectDir:     row.ProjectDir,
-			conversationID: row.ConversationID,
-			entityID:       row.EntityID,
-			role:           row.Role,
-			createdAt:      row.CreatedAt,
-			snippet:        snippetText(row.Snippet),
-		})
-	}
-	return out
-}
-
 func toResultItem(item hit) ResultItem {
 	result := ResultItem{
 		Type:              item.resultType,
@@ -315,10 +247,6 @@ func toResultItem(item hit) ResultItem {
 	switch item.resultType {
 	case "message":
 		result.MessageID = item.entityID
-	case "memory":
-		result.MemoryID = item.entityID
-	case "artifact":
-		result.ArtifactID = item.entityID
 	}
 	return result
 }

@@ -35,8 +35,6 @@ type ResultItem struct {
 	ConversationID    int64   `json:"conversation_id,omitempty"`
 	ConversationTitle string  `json:"conversation_title,omitempty"`
 	MessageID         int64   `json:"message_id,omitempty"`
-	MemoryID          int64   `json:"memory_id,omitempty"`
-	ArtifactID        int64   `json:"artifact_id,omitempty"`
 	Role              string  `json:"role,omitempty"`
 	CreatedAt         string  `json:"created_at,omitempty"`
 	Snippet           string  `json:"snippet"`

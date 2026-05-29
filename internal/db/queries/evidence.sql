@@ -1,27 +1,9 @@
--- name: CreateArtifact :one
-INSERT INTO artifacts (source_file_id, conversation_id, path, kind, text, sha256, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING *;
-
--- name: GetArtifact :one
-SELECT * FROM artifacts
-WHERE id = ?;
-
--- name: ListConversationArtifacts :many
-SELECT * FROM artifacts
-WHERE conversation_id = ?
-ORDER BY created_at, id;
-
--- name: DeleteArtifact :exec
-DELETE FROM artifacts
-WHERE id = ?;
-
 -- name: CreateToolCall :one
 INSERT INTO tool_calls (
     message_id, block_id, tool_name, arguments_json, working_directory,
-    status, output_artifact_id, created_at
+    status, created_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetToolCall :one
@@ -70,28 +52,6 @@ WHERE message_id = ?;
 
 -- name: DeleteFileMention :exec
 DELETE FROM file_mentions
-WHERE id = ?;
-
--- name: CreatePatch :one
-INSERT INTO patches (
-    tool_call_id, message_id, file_id, patch_kind, raw_patch,
-    added_lines, removed_lines, parsed_ok
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING *;
-
--- name: ListMessagePatches :many
-SELECT * FROM patches
-WHERE message_id = ?
-ORDER BY id;
-
--- name: ListFilePatches :many
-SELECT * FROM patches
-WHERE file_id = ?
-ORDER BY id;
-
--- name: DeletePatch :exec
-DELETE FROM patches
 WHERE id = ?;
 
 -- name: ListRelatedFilesForConversations :many

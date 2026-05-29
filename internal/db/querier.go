@@ -10,50 +10,33 @@ import (
 )
 
 type Querier interface {
-	CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error)
 	CreateConversation(ctx context.Context, arg CreateConversationParams) (Conversation, error)
-	CreateEntity(ctx context.Context, arg CreateEntityParams) (Entity, error)
-	CreateEntityMention(ctx context.Context, arg CreateEntityMentionParams) (EntityMention, error)
 	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
 	CreateFileMention(ctx context.Context, arg CreateFileMentionParams) (FileMention, error)
-	CreateMemoryItem(ctx context.Context, arg CreateMemoryItemParams) (MemoryItem, error)
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateMessageBlock(ctx context.Context, arg CreateMessageBlockParams) (MessageBlock, error)
 	CreateParseError(ctx context.Context, arg CreateParseErrorParams) (ParseError, error)
-	CreatePatch(ctx context.Context, arg CreatePatchParams) (Patch, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateSource(ctx context.Context, arg CreateSourceParams) (Source, error)
 	CreateSourceFile(ctx context.Context, arg CreateSourceFileParams) (SourceFile, error)
-	CreateTaskItem(ctx context.Context, arg CreateTaskItemParams) (TaskItem, error)
 	CreateToolCall(ctx context.Context, arg CreateToolCallParams) (ToolCall, error)
-	CreateTopic(ctx context.Context, arg CreateTopicParams) (Topic, error)
-	DeleteArtifact(ctx context.Context, id int64) error
 	DeleteConversation(ctx context.Context, id int64) error
-	DeleteEntity(ctx context.Context, id int64) error
-	DeleteEntityMention(ctx context.Context, id int64) error
 	DeleteFile(ctx context.Context, id int64) error
 	DeleteFileMention(ctx context.Context, id int64) error
 	DeleteFileMentionsForMessage(ctx context.Context, messageID sql.NullInt64) error
-	DeleteMemoryItem(ctx context.Context, id int64) error
 	DeleteMessage(ctx context.Context, id int64) error
 	DeleteMessageBlock(ctx context.Context, id int64) error
 	DeleteParseError(ctx context.Context, id int64) error
-	DeletePatch(ctx context.Context, id int64) error
 	DeleteProject(ctx context.Context, id int64) error
 	DeleteSource(ctx context.Context, id int64) error
 	DeleteSourceFile(ctx context.Context, id int64) error
-	DeleteTaskItem(ctx context.Context, id int64) error
 	DeleteToolCall(ctx context.Context, id int64) error
 	DeleteToolCallFileMentionsForMessage(ctx context.Context, messageID int64) error
 	DeleteToolCallsForMessage(ctx context.Context, messageID int64) error
-	DeleteTopic(ctx context.Context, id int64) error
-	GetArtifact(ctx context.Context, id int64) (Artifact, error)
 	GetConversation(ctx context.Context, id int64) (Conversation, error)
 	GetConversationByExternalID(ctx context.Context, arg GetConversationByExternalIDParams) (Conversation, error)
-	GetEntity(ctx context.Context, id int64) (Entity, error)
 	GetFile(ctx context.Context, id int64) (File, error)
 	GetIndexStats(ctx context.Context) (GetIndexStatsRow, error)
-	GetMemoryItem(ctx context.Context, id int64) (MemoryItem, error)
 	GetMessage(ctx context.Context, id int64) (Message, error)
 	GetMessageByRawLine(ctx context.Context, arg GetMessageByRawLineParams) (Message, error)
 	GetProject(ctx context.Context, id int64) (Project, error)
@@ -62,54 +45,34 @@ type Querier interface {
 	GetSourceByKindRoot(ctx context.Context, arg GetSourceByKindRootParams) (Source, error)
 	GetSourceFile(ctx context.Context, id int64) (SourceFile, error)
 	GetSourceFileByPath(ctx context.Context, arg GetSourceFileByPathParams) (SourceFile, error)
-	GetTaskItem(ctx context.Context, id int64) (TaskItem, error)
 	GetToolCall(ctx context.Context, id int64) (ToolCall, error)
-	LinkConversationTopic(ctx context.Context, arg LinkConversationTopicParams) error
-	ListConversationArtifacts(ctx context.Context, conversationID sql.NullInt64) ([]Artifact, error)
 	ListConversationMessages(ctx context.Context, conversationID int64) ([]Message, error)
-	ListConversationTopics(ctx context.Context, conversationID int64) ([]ListConversationTopicsRow, error)
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]Conversation, error)
-	ListEntitiesByType(ctx context.Context, type_ string) ([]Entity, error)
-	ListEntityMentions(ctx context.Context, entityID int64) ([]EntityMention, error)
 	ListFileMentions(ctx context.Context, fileID int64) ([]FileMention, error)
-	ListFilePatches(ctx context.Context, fileID sql.NullInt64) ([]Patch, error)
 	ListIndexStatsBySource(ctx context.Context) ([]ListIndexStatsBySourceRow, error)
-	ListMemoryItems(ctx context.Context, arg ListMemoryItemsParams) ([]MemoryItem, error)
-	ListMemoryItemsByKind(ctx context.Context, arg ListMemoryItemsByKindParams) ([]MemoryItem, error)
 	ListMessageBlocks(ctx context.Context, messageID int64) ([]MessageBlock, error)
 	ListMessageFileMentions(ctx context.Context, messageID sql.NullInt64) ([]FileMention, error)
-	ListMessagePatches(ctx context.Context, messageID sql.NullInt64) ([]Patch, error)
 	ListMessageToolCalls(ctx context.Context, messageID int64) ([]ToolCall, error)
 	ListParseErrorsForSourceFile(ctx context.Context, sourceFileID sql.NullInt64) ([]ParseError, error)
 	ListProjectConversations(ctx context.Context, arg ListProjectConversationsParams) ([]Conversation, error)
 	ListProjectFiles(ctx context.Context, projectID sql.NullInt64) ([]File, error)
-	ListProjectMemoryItems(ctx context.Context, arg ListProjectMemoryItemsParams) ([]MemoryItem, error)
 	ListProjectSummaries(ctx context.Context) ([]ListProjectSummariesRow, error)
-	ListProjectTasks(ctx context.Context, projectID sql.NullInt64) ([]TaskItem, error)
-	ListProjectTasksByStatus(ctx context.Context, arg ListProjectTasksByStatusParams) ([]TaskItem, error)
 	ListProjects(ctx context.Context) ([]Project, error)
 	ListRelatedFilesForConversations(ctx context.Context, arg ListRelatedFilesForConversationsParams) ([]ListRelatedFilesForConversationsRow, error)
 	ListSourceFiles(ctx context.Context, sourceID int64) ([]SourceFile, error)
 	ListSources(ctx context.Context) ([]Source, error)
 	ListToolCallsForConversations(ctx context.Context, arg ListToolCallsForConversationsParams) ([]ListToolCallsForConversationsRow, error)
-	ListTopics(ctx context.Context) ([]Topic, error)
-	SearchArtifactHits(ctx context.Context, arg SearchArtifactHitsParams) ([]SearchArtifactHitsRow, error)
 	SearchFileContext(ctx context.Context, arg SearchFileContextParams) ([]SearchFileContextRow, error)
-	SearchMemoryHits(ctx context.Context, arg SearchMemoryHitsParams) ([]SearchMemoryHitsRow, error)
 	SearchMessageHits(ctx context.Context, arg SearchMessageHitsParams) ([]SearchMessageHitsRow, error)
-	UnlinkConversationTopic(ctx context.Context, arg UnlinkConversationTopicParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateSource(ctx context.Context, arg UpdateSourceParams) (Source, error)
-	UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) (TaskItem, error)
 	UpsertConversation(ctx context.Context, arg UpsertConversationParams) (Conversation, error)
-	UpsertEntity(ctx context.Context, arg UpsertEntityParams) (Entity, error)
 	UpsertFile(ctx context.Context, arg UpsertFileParams) (File, error)
 	UpsertMessage(ctx context.Context, arg UpsertMessageParams) (Message, error)
 	UpsertMessageBlock(ctx context.Context, arg UpsertMessageBlockParams) (MessageBlock, error)
 	UpsertProject(ctx context.Context, arg UpsertProjectParams) (Project, error)
 	UpsertSource(ctx context.Context, arg UpsertSourceParams) (Source, error)
 	UpsertSourceFile(ctx context.Context, arg UpsertSourceFileParams) (SourceFile, error)
-	UpsertTopic(ctx context.Context, arg UpsertTopicParams) (Topic, error)
 }
 
 var _ Querier = (*Queries)(nil)

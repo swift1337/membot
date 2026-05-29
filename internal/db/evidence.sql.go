@@ -11,46 +11,6 @@ import (
 	"strings"
 )
 
-const createArtifact = `-- name: CreateArtifact :one
-INSERT INTO artifacts (source_file_id, conversation_id, path, kind, text, sha256, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, source_file_id, conversation_id, path, kind, text, sha256, created_at
-`
-
-type CreateArtifactParams struct {
-	SourceFileID   sql.NullInt64  `json:"source_file_id"`
-	ConversationID sql.NullInt64  `json:"conversation_id"`
-	Path           string         `json:"path"`
-	Kind           string         `json:"kind"`
-	Text           sql.NullString `json:"text"`
-	Sha256         sql.NullString `json:"sha256"`
-	CreatedAt      sql.NullString `json:"created_at"`
-}
-
-func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error) {
-	row := q.db.QueryRowContext(ctx, createArtifact,
-		arg.SourceFileID,
-		arg.ConversationID,
-		arg.Path,
-		arg.Kind,
-		arg.Text,
-		arg.Sha256,
-		arg.CreatedAt,
-	)
-	var i Artifact
-	err := row.Scan(
-		&i.ID,
-		&i.SourceFileID,
-		&i.ConversationID,
-		&i.Path,
-		&i.Kind,
-		&i.Text,
-		&i.Sha256,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const createFileMention = `-- name: CreateFileMention :one
 INSERT INTO file_mentions (
     file_id, message_id, tool_call_id, mention_kind, line_start, line_end, snippet
@@ -93,59 +53,13 @@ func (q *Queries) CreateFileMention(ctx context.Context, arg CreateFileMentionPa
 	return i, err
 }
 
-const createPatch = `-- name: CreatePatch :one
-INSERT INTO patches (
-    tool_call_id, message_id, file_id, patch_kind, raw_patch,
-    added_lines, removed_lines, parsed_ok
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, tool_call_id, message_id, file_id, patch_kind, raw_patch, added_lines, removed_lines, parsed_ok
-`
-
-type CreatePatchParams struct {
-	ToolCallID   sql.NullInt64 `json:"tool_call_id"`
-	MessageID    sql.NullInt64 `json:"message_id"`
-	FileID       sql.NullInt64 `json:"file_id"`
-	PatchKind    string        `json:"patch_kind"`
-	RawPatch     string        `json:"raw_patch"`
-	AddedLines   sql.NullInt64 `json:"added_lines"`
-	RemovedLines sql.NullInt64 `json:"removed_lines"`
-	ParsedOk     int64         `json:"parsed_ok"`
-}
-
-func (q *Queries) CreatePatch(ctx context.Context, arg CreatePatchParams) (Patch, error) {
-	row := q.db.QueryRowContext(ctx, createPatch,
-		arg.ToolCallID,
-		arg.MessageID,
-		arg.FileID,
-		arg.PatchKind,
-		arg.RawPatch,
-		arg.AddedLines,
-		arg.RemovedLines,
-		arg.ParsedOk,
-	)
-	var i Patch
-	err := row.Scan(
-		&i.ID,
-		&i.ToolCallID,
-		&i.MessageID,
-		&i.FileID,
-		&i.PatchKind,
-		&i.RawPatch,
-		&i.AddedLines,
-		&i.RemovedLines,
-		&i.ParsedOk,
-	)
-	return i, err
-}
-
 const createToolCall = `-- name: CreateToolCall :one
 INSERT INTO tool_calls (
     message_id, block_id, tool_name, arguments_json, working_directory,
-    status, output_artifact_id, created_at
+    status, created_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, message_id, block_id, tool_name, arguments_json, working_directory, status, output_artifact_id, created_at
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, message_id, block_id, tool_name, arguments_json, working_directory, status, created_at
 `
 
 type CreateToolCallParams struct {
@@ -155,7 +69,6 @@ type CreateToolCallParams struct {
 	ArgumentsJson    sql.NullString `json:"arguments_json"`
 	WorkingDirectory sql.NullString `json:"working_directory"`
 	Status           sql.NullString `json:"status"`
-	OutputArtifactID sql.NullInt64  `json:"output_artifact_id"`
 	CreatedAt        sql.NullString `json:"created_at"`
 }
 
@@ -167,7 +80,6 @@ func (q *Queries) CreateToolCall(ctx context.Context, arg CreateToolCallParams) 
 		arg.ArgumentsJson,
 		arg.WorkingDirectory,
 		arg.Status,
-		arg.OutputArtifactID,
 		arg.CreatedAt,
 	)
 	var i ToolCall
@@ -179,20 +91,9 @@ func (q *Queries) CreateToolCall(ctx context.Context, arg CreateToolCallParams) 
 		&i.ArgumentsJson,
 		&i.WorkingDirectory,
 		&i.Status,
-		&i.OutputArtifactID,
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const deleteArtifact = `-- name: DeleteArtifact :exec
-DELETE FROM artifacts
-WHERE id = ?
-`
-
-func (q *Queries) DeleteArtifact(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteArtifact, id)
-	return err
 }
 
 const deleteFileMention = `-- name: DeleteFileMention :exec
@@ -212,16 +113,6 @@ WHERE message_id = ?
 
 func (q *Queries) DeleteFileMentionsForMessage(ctx context.Context, messageID sql.NullInt64) error {
 	_, err := q.db.ExecContext(ctx, deleteFileMentionsForMessage, messageID)
-	return err
-}
-
-const deletePatch = `-- name: DeletePatch :exec
-DELETE FROM patches
-WHERE id = ?
-`
-
-func (q *Queries) DeletePatch(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deletePatch, id)
 	return err
 }
 
@@ -257,29 +148,8 @@ func (q *Queries) DeleteToolCallsForMessage(ctx context.Context, messageID int64
 	return err
 }
 
-const getArtifact = `-- name: GetArtifact :one
-SELECT id, source_file_id, conversation_id, path, kind, text, sha256, created_at FROM artifacts
-WHERE id = ?
-`
-
-func (q *Queries) GetArtifact(ctx context.Context, id int64) (Artifact, error) {
-	row := q.db.QueryRowContext(ctx, getArtifact, id)
-	var i Artifact
-	err := row.Scan(
-		&i.ID,
-		&i.SourceFileID,
-		&i.ConversationID,
-		&i.Path,
-		&i.Kind,
-		&i.Text,
-		&i.Sha256,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getToolCall = `-- name: GetToolCall :one
-SELECT id, message_id, block_id, tool_name, arguments_json, working_directory, status, output_artifact_id, created_at FROM tool_calls
+SELECT id, message_id, block_id, tool_name, arguments_json, working_directory, status, created_at FROM tool_calls
 WHERE id = ?
 `
 
@@ -294,48 +164,9 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 		&i.ArgumentsJson,
 		&i.WorkingDirectory,
 		&i.Status,
-		&i.OutputArtifactID,
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const listConversationArtifacts = `-- name: ListConversationArtifacts :many
-SELECT id, source_file_id, conversation_id, path, kind, text, sha256, created_at FROM artifacts
-WHERE conversation_id = ?
-ORDER BY created_at, id
-`
-
-func (q *Queries) ListConversationArtifacts(ctx context.Context, conversationID sql.NullInt64) ([]Artifact, error) {
-	rows, err := q.db.QueryContext(ctx, listConversationArtifacts, conversationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Artifact{}
-	for rows.Next() {
-		var i Artifact
-		if err := rows.Scan(
-			&i.ID,
-			&i.SourceFileID,
-			&i.ConversationID,
-			&i.Path,
-			&i.Kind,
-			&i.Text,
-			&i.Sha256,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listFileMentions = `-- name: ListFileMentions :many
@@ -362,45 +193,6 @@ func (q *Queries) ListFileMentions(ctx context.Context, fileID int64) ([]FileMen
 			&i.LineStart,
 			&i.LineEnd,
 			&i.Snippet,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFilePatches = `-- name: ListFilePatches :many
-SELECT id, tool_call_id, message_id, file_id, patch_kind, raw_patch, added_lines, removed_lines, parsed_ok FROM patches
-WHERE file_id = ?
-ORDER BY id
-`
-
-func (q *Queries) ListFilePatches(ctx context.Context, fileID sql.NullInt64) ([]Patch, error) {
-	rows, err := q.db.QueryContext(ctx, listFilePatches, fileID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Patch{}
-	for rows.Next() {
-		var i Patch
-		if err := rows.Scan(
-			&i.ID,
-			&i.ToolCallID,
-			&i.MessageID,
-			&i.FileID,
-			&i.PatchKind,
-			&i.RawPatch,
-			&i.AddedLines,
-			&i.RemovedLines,
-			&i.ParsedOk,
 		); err != nil {
 			return nil, err
 		}
@@ -453,47 +245,8 @@ func (q *Queries) ListMessageFileMentions(ctx context.Context, messageID sql.Nul
 	return items, nil
 }
 
-const listMessagePatches = `-- name: ListMessagePatches :many
-SELECT id, tool_call_id, message_id, file_id, patch_kind, raw_patch, added_lines, removed_lines, parsed_ok FROM patches
-WHERE message_id = ?
-ORDER BY id
-`
-
-func (q *Queries) ListMessagePatches(ctx context.Context, messageID sql.NullInt64) ([]Patch, error) {
-	rows, err := q.db.QueryContext(ctx, listMessagePatches, messageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Patch{}
-	for rows.Next() {
-		var i Patch
-		if err := rows.Scan(
-			&i.ID,
-			&i.ToolCallID,
-			&i.MessageID,
-			&i.FileID,
-			&i.PatchKind,
-			&i.RawPatch,
-			&i.AddedLines,
-			&i.RemovedLines,
-			&i.ParsedOk,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listMessageToolCalls = `-- name: ListMessageToolCalls :many
-SELECT id, message_id, block_id, tool_name, arguments_json, working_directory, status, output_artifact_id, created_at FROM tool_calls
+SELECT id, message_id, block_id, tool_name, arguments_json, working_directory, status, created_at FROM tool_calls
 WHERE message_id = ?
 ORDER BY id
 `
@@ -515,7 +268,6 @@ func (q *Queries) ListMessageToolCalls(ctx context.Context, messageID int64) ([]
 			&i.ArgumentsJson,
 			&i.WorkingDirectory,
 			&i.Status,
-			&i.OutputArtifactID,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

@@ -182,10 +182,6 @@ func resultRef(item ResultItem) string {
 			return fmt.Sprintf("msg:%d %s", item.MessageID, truncate(item.ConversationTitle, 24))
 		}
 		return fmt.Sprintf("msg:%d", item.MessageID)
-	case "memory":
-		return fmt.Sprintf("memory:%d", item.MemoryID)
-	case "artifact":
-		return fmt.Sprintf("artifact:%d", item.ArtifactID)
 	default:
 		return item.Type
 	}
