@@ -126,9 +126,8 @@ func Install(opts InstallOptions) (Status, error) {
 		return Status{}, fmt.Errorf("write launch agent %s: %w", plistPath, err)
 	}
 
-	_ = runLaunchctl("unload", plistPath)
-	if err := runLaunchctl("load", plistPath); err != nil {
-		return Status{}, fmt.Errorf("load launch agent: %w", err)
+	if err := reload(plistPath); err != nil {
+		return Status{}, err
 	}
 
 	return StatusForPlist(plistPath)
@@ -150,7 +149,7 @@ func Uninstall() (Status, error) {
 	}
 
 	if status.Installed {
-		if err := runLaunchctl("unload", plistPath); err != nil {
+		if err := unload(plistPath); err != nil {
 			return Status{}, fmt.Errorf("unload launch agent: %w", err)
 		}
 		if err := os.Remove(plistPath); err != nil && !os.IsNotExist(err) {
@@ -196,6 +195,46 @@ func requireDarwin() error {
 		return ErrUnsupported
 	}
 	return nil
+}
+
+// reload (re)installs the LaunchAgent so a freshly built binary is picked up.
+// It tears down any existing registration, bootstraps the (possibly updated)
+// plist, then force-restarts the job with `kickstart -k` so launchd re-execs
+// the binary at the path in the plist — i.e. the one just put in place by
+// `make install`. Legacy load/unload are used as a fallback on older macOS.
+func reload(plistPath string) error {
+	_ = unload(plistPath)
+
+	domain := guiDomain()
+	if err := runLaunchctl("bootstrap", domain, plistPath); err != nil {
+		// Older macOS (or sandboxed contexts) may not support bootstrap.
+		if loadErr := runLaunchctl("load", plistPath); loadErr != nil {
+			return fmt.Errorf("load launch agent (bootstrap failed: %v): %w", err, loadErr)
+		}
+		return nil
+	}
+
+	// Force a restart so the new binary is exec'd even if the job was already
+	// running with identical plist contents. Best-effort: the service is loaded
+	// either way.
+	_ = runLaunchctl("kickstart", "-k", domain+"/"+Label)
+	return nil
+}
+
+// unload removes an existing LaunchAgent registration, tolerating either the
+// modern (bootout) or legacy (unload) launchctl interface.
+func unload(plistPath string) error {
+	if err := runLaunchctl("bootout", guiDomain()+"/"+Label); err == nil {
+		return nil
+	}
+	// Fall back to the legacy interface; ignore "not loaded" style errors which
+	// are expected when the job was never registered.
+	_ = runLaunchctl("unload", plistPath)
+	return nil
+}
+
+func guiDomain() string {
+	return fmt.Sprintf("gui/%d", os.Getuid())
 }
 
 func runLaunchctl(args ...string) error {

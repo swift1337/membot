@@ -131,7 +131,7 @@ func newIndexStatsCommand(openStore func(*cobra.Command) (*store.Store, error)) 
 				"conversation_count": stats.ConversationCount,
 				"message_count":      stats.MessageCount,
 				"source_file_count":  stats.SourceFileCount,
-				"last_indexed_at":    sqliteText(stats.LastIndexedAt),
+				"last_change_at":     sqliteText(stats.LastIndexedAt),
 			})
 		},
 	}
