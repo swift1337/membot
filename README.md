@@ -3,6 +3,20 @@
 `membot` indexes local assistant history into a memory store so you
 can search past conversations, related files, and tool calls.
 
+## Features
+
+- [x] CLI to index, query, and inspect local assistant history from the terminal
+- [x] Boolean full-text search (`AND`, `OR`, parentheses) with project, source, and time (`--since`) filters
+- [x] JSON or formatted (`--text`) output
+- [x] File context search to find conversations that touched a given file by name or path
+- [x] MCP server exposing the same search over the Model Context Protocol
+- [x] Background indexing via a macOS LaunchAgent (`membot service install/uninstall/status`)
+
+## Supported agents
+
+- [x] Cursor: project transcripts, tool calls, and repos referenced by `.code-workspace` files
+- [x] Claude Code: project transcripts from the Claude data directory
+
 ## Install
 
 ```sh
