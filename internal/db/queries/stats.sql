@@ -6,6 +6,21 @@ SELECT
     (SELECT count(*) FROM source_files) AS source_file_count,
     (SELECT coalesce(max(indexed_at), '') FROM source_files) AS last_indexed_at;
 
+-- name: ListIndexStatsBySource :many
+SELECT
+    s.kind AS source_kind,
+    count(DISTINCT c.project_id) AS project_count,
+    count(DISTINCT c.id) AS conversation_count,
+    count(DISTINCT m.id) AS message_count,
+    count(DISTINCT sf.id) AS source_file_count,
+    coalesce(max(sf.indexed_at), '') AS last_indexed_at
+FROM sources s
+LEFT JOIN source_files sf ON sf.source_id = s.id
+LEFT JOIN conversations c ON c.source_id = s.id
+LEFT JOIN messages m ON m.conversation_id = c.id
+GROUP BY s.kind
+ORDER BY s.kind;
+
 -- name: ListProjectSummaries :many
 WITH project_conversations AS (
     SELECT p.id AS project_id, c.id AS conversation_id

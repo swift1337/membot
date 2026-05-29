@@ -17,6 +17,7 @@ const fileContextResultType = "file_context"
 type FileContextOptions struct {
 	FilenameOrPath string
 	Project        string
+	Agent          string
 	Limit          int
 }
 
@@ -24,6 +25,7 @@ type FileContextOptions struct {
 type FileContextResponse struct {
 	Query   string            `json:"query"`
 	Project string            `json:"project,omitempty"`
+	Agent   string            `json:"agent,omitempty"`
 	Result  []FileContextItem `json:"result"`
 }
 
@@ -55,6 +57,10 @@ func SearchFileContext(ctx context.Context, st *store.Store, opts FileContextOpt
 	if limit > maxLimit {
 		limit = maxLimit
 	}
+	agent, err := normalizeAgent(opts.Agent)
+	if err != nil {
+		return FileContextResponse{}, err
+	}
 
 	q := st.Queries()
 	enableProject := int64(0)
@@ -79,6 +85,8 @@ func SearchFileContext(ctx context.Context, st *store.Store, opts FileContextOpt
 		EnableProject: enableProject,
 		ProjectID:     projectID,
 		ProjectPath:   projectPath,
+		EnableAgent:   boolInt64(agent != ""),
+		Agent:         agent,
 		Basename:      basename,
 		PathContains:  sql.NullString{String: "%" + likePattern + "%", Valid: true},
 		PathSuffix:    sql.NullString{String: "%/" + escapeLikePattern(basename), Valid: basename != ""},
@@ -111,6 +119,7 @@ func SearchFileContext(ctx context.Context, st *store.Store, opts FileContextOpt
 	return FileContextResponse{
 		Query:   pattern,
 		Project: resolvedProject,
+		Agent:   agent,
 		Result:  result,
 	}, nil
 }

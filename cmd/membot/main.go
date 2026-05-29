@@ -65,6 +65,7 @@ func newRootCommand() *cobra.Command {
 func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
 	var (
 		projectFlag string
+		agentFlag   string
 		sinceFlag   string
 		textFlag    bool
 		limitFlag   int
@@ -99,6 +100,7 @@ Examples:
 			response, err := query.Search(cmd.Context(), db, query.Options{
 				Query:   strings.Join(args, " "),
 				Project: projectFlag,
+				Agent:   agentFlag,
 				Since:   sinceFlag,
 				Limit:   limitFlag,
 				OrderBy: query.OrderBy(orderByFlag),
@@ -116,6 +118,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVarP(&projectFlag, "project", "p", "", "Filter by project name, slug, or path")
+	cmd.Flags().StringVar(&agentFlag, "agent", "", "Filter by indexed agent source: cursor or claude")
 	cmd.Flags().StringVar(&sinceFlag, "since", "", "Only include results since this time (e.g. yesterday, 3h, 1 week)")
 	cmd.Flags().BoolVar(&textFlag, "text", false, "Render results as formatted text instead of JSON")
 	cmd.Flags().IntVar(&limitFlag, "limit", 20, "Maximum number of results")
@@ -123,6 +126,7 @@ Examples:
 
 	var (
 		filesProjectFlag string
+		filesAgentFlag   string
 		filesTextFlag    bool
 		filesLimitFlag   int
 		projectsTextFlag bool
@@ -147,6 +151,7 @@ Examples:
 			response, err := query.SearchFileContext(cmd.Context(), db, query.FileContextOptions{
 				FilenameOrPath: strings.Join(args, " "),
 				Project:        filesProjectFlag,
+				Agent:          filesAgentFlag,
 				Limit:          filesLimitFlag,
 			})
 			if err != nil {
@@ -161,6 +166,7 @@ Examples:
 		},
 	}
 	filesCmd.Flags().StringVarP(&filesProjectFlag, "project", "p", "", "Filter by project name, slug, or path")
+	filesCmd.Flags().StringVar(&filesAgentFlag, "agent", "", "Filter by indexed agent source: cursor or claude")
 	filesCmd.Flags().BoolVar(&filesTextFlag, "text", false, "Render results as formatted text instead of JSON")
 	filesCmd.Flags().IntVar(&filesLimitFlag, "limit", 20, "Maximum number of results")
 	cmd.AddCommand(filesCmd)

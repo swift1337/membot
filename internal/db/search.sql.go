@@ -25,6 +25,7 @@ SELECT
 FROM artifact_fts(?1) f
 JOIN artifacts a ON a.id = f.rowid
 LEFT JOIN conversations c ON c.id = a.conversation_id
+LEFT JOIN sources s ON s.id = c.source_id
 LEFT JOIN projects p ON p.id = c.project_id
 WHERE (
     ?2 = 0
@@ -57,9 +58,10 @@ WHERE (
         )
     )
 )
-  AND (?5 = 0 OR coalesce(a.created_at, '') >= ?6)
+  AND (?5 = 0 OR s.kind = ?6)
+  AND (?7 = 0 OR coalesce(a.created_at, '') >= ?8)
 ORDER BY score
-LIMIT ?7
+LIMIT ?9
 `
 
 type SearchArtifactHitsParams struct {
@@ -67,6 +69,8 @@ type SearchArtifactHitsParams struct {
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
 	ProjectPath   interface{}    `json:"project_path"`
+	EnableAgent   interface{}    `json:"enable_agent"`
+	Agent         string         `json:"agent"`
 	EnableSince   interface{}    `json:"enable_since"`
 	Since         sql.NullString `json:"since"`
 	ResultLimit   int64          `json:"result_limit"`
@@ -91,6 +95,8 @@ func (q *Queries) SearchArtifactHits(ctx context.Context, arg SearchArtifactHits
 		arg.EnableProject,
 		arg.ProjectID,
 		arg.ProjectPath,
+		arg.EnableAgent,
+		arg.Agent,
 		arg.EnableSince,
 		arg.Since,
 		arg.ResultLimit,
@@ -143,6 +149,7 @@ FROM memory_fts(?1) f
 JOIN memory_items mi ON mi.id = f.rowid
 LEFT JOIN projects p ON p.id = mi.project_id
 LEFT JOIN conversations c ON c.id = mi.conversation_id
+LEFT JOIN sources s ON s.id = c.source_id
 WHERE (
     ?2 = 0
     OR mi.project_id = ?3
@@ -177,9 +184,10 @@ WHERE (
         )
     )
 )
-  AND (?5 = 0 OR coalesce(mi.happened_at, mi.created_at, '') >= ?6)
+  AND (?5 = 0 OR s.kind = ?6)
+  AND (?7 = 0 OR coalesce(mi.happened_at, mi.created_at, '') >= ?8)
 ORDER BY score
-LIMIT ?7
+LIMIT ?9
 `
 
 type SearchMemoryHitsParams struct {
@@ -187,6 +195,8 @@ type SearchMemoryHitsParams struct {
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
 	ProjectPath   interface{}    `json:"project_path"`
+	EnableAgent   interface{}    `json:"enable_agent"`
+	Agent         string         `json:"agent"`
 	EnableSince   interface{}    `json:"enable_since"`
 	Since         sql.NullString `json:"since"`
 	ResultLimit   int64          `json:"result_limit"`
@@ -211,6 +221,8 @@ func (q *Queries) SearchMemoryHits(ctx context.Context, arg SearchMemoryHitsPara
 		arg.EnableProject,
 		arg.ProjectID,
 		arg.ProjectPath,
+		arg.EnableAgent,
+		arg.Agent,
 		arg.EnableSince,
 		arg.Since,
 		arg.ResultLimit,
@@ -262,6 +274,7 @@ SELECT
 FROM message_fts(?1) f
 JOIN messages m ON m.id = f.rowid
 JOIN conversations c ON c.id = m.conversation_id
+JOIN sources s ON s.id = c.source_id
 LEFT JOIN projects p ON p.id = c.project_id
 LEFT JOIN source_files sf ON sf.id = m.source_file_id
 WHERE (
@@ -295,9 +308,10 @@ WHERE (
         )
     )
 )
-  AND (?5 = 0 OR coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') >= ?6)
+  AND (?5 = 0 OR s.kind = ?6)
+  AND (?7 = 0 OR coalesce(m.created_at, c.started_at, strftime('%Y-%m-%dT%H:%M:%SZ', sf.mtime_unix, 'unixepoch'), sf.indexed_at, '') >= ?8)
 ORDER BY score
-LIMIT ?7
+LIMIT ?9
 `
 
 type SearchMessageHitsParams struct {
@@ -305,6 +319,8 @@ type SearchMessageHitsParams struct {
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
 	ProjectPath   interface{}    `json:"project_path"`
+	EnableAgent   interface{}    `json:"enable_agent"`
+	Agent         string         `json:"agent"`
 	EnableSince   interface{}    `json:"enable_since"`
 	Since         sql.NullString `json:"since"`
 	ResultLimit   int64          `json:"result_limit"`
@@ -329,6 +345,8 @@ func (q *Queries) SearchMessageHits(ctx context.Context, arg SearchMessageHitsPa
 		arg.EnableProject,
 		arg.ProjectID,
 		arg.ProjectPath,
+		arg.EnableAgent,
+		arg.Agent,
 		arg.EnableSince,
 		arg.Since,
 		arg.ResultLimit,

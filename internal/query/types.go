@@ -13,6 +13,7 @@ const (
 type Options struct {
 	Query   string
 	Project string
+	Agent   string
 	Since   string
 	Limit   int
 	OrderBy OrderBy

@@ -73,6 +73,7 @@ type Querier interface {
 	ListEntityMentions(ctx context.Context, entityID int64) ([]EntityMention, error)
 	ListFileMentions(ctx context.Context, fileID int64) ([]FileMention, error)
 	ListFilePatches(ctx context.Context, fileID sql.NullInt64) ([]Patch, error)
+	ListIndexStatsBySource(ctx context.Context) ([]ListIndexStatsBySourceRow, error)
 	ListMemoryItems(ctx context.Context, arg ListMemoryItemsParams) ([]MemoryItem, error)
 	ListMemoryItemsByKind(ctx context.Context, arg ListMemoryItemsByKindParams) ([]MemoryItem, error)
 	ListMessageBlocks(ctx context.Context, messageID int64) ([]MessageBlock, error)

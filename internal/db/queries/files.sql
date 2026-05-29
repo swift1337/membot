@@ -23,6 +23,7 @@ FROM files f
 JOIN file_mentions fm ON fm.file_id = f.id
 JOIN messages m ON m.id = fm.message_id
 JOIN conversations c ON c.id = m.conversation_id
+JOIN sources s ON s.id = c.source_id
 LEFT JOIN projects p ON p.id = f.project_id
 WHERE (
   @enable_project = 0
@@ -35,6 +36,7 @@ WHERE (
     )
   )
 )
+  AND (@enable_agent = 0 OR s.kind = @agent)
   AND (
     (@basename != '' AND f.basename = @basename)
     OR coalesce(f.normalized_path, f.path) LIKE @path_contains

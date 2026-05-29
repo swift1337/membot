@@ -90,6 +90,13 @@ Limit results to a project and recent history:
 membot query "tool calls" --project membot --since 1w --limit 10 --text
 ```
 
+Filter results to one indexed assistant source:
+
+```sh
+membot query "workflow" --agent claude --text
+membot query files workflow.go --agent cursor --project sandbox --text
+```
+
 Return JSON for scripts:
 
 ```sh
@@ -153,8 +160,8 @@ and serves whatever is already in the database.
 
 | Tool | Description |
 | --- | --- |
-| `search` | Full-text search over messages, memory, and artifacts. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `since`, `limit`. Same as `membot query`. |
-| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `limit`. Same as `membot query files`. |
+| `search` | Full-text search over messages, memory, and artifacts. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor` or `claude`), `since`, `limit`. Same as `membot query`. |
+| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor` or `claude`), `limit`. Same as `membot query files`. |
 | `list_projects` | List indexed workspaces with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
 
 ## Development

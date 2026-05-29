@@ -39,6 +39,61 @@ func (q *Queries) GetIndexStats(ctx context.Context) (GetIndexStatsRow, error) {
 	return i, err
 }
 
+const listIndexStatsBySource = `-- name: ListIndexStatsBySource :many
+SELECT
+    s.kind AS source_kind,
+    count(DISTINCT c.project_id) AS project_count,
+    count(DISTINCT c.id) AS conversation_count,
+    count(DISTINCT m.id) AS message_count,
+    count(DISTINCT sf.id) AS source_file_count,
+    coalesce(max(sf.indexed_at), '') AS last_indexed_at
+FROM sources s
+LEFT JOIN source_files sf ON sf.source_id = s.id
+LEFT JOIN conversations c ON c.source_id = s.id
+LEFT JOIN messages m ON m.conversation_id = c.id
+GROUP BY s.kind
+ORDER BY s.kind
+`
+
+type ListIndexStatsBySourceRow struct {
+	SourceKind        string      `json:"source_kind"`
+	ProjectCount      int64       `json:"project_count"`
+	ConversationCount int64       `json:"conversation_count"`
+	MessageCount      int64       `json:"message_count"`
+	SourceFileCount   int64       `json:"source_file_count"`
+	LastIndexedAt     interface{} `json:"last_indexed_at"`
+}
+
+func (q *Queries) ListIndexStatsBySource(ctx context.Context) ([]ListIndexStatsBySourceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listIndexStatsBySource)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIndexStatsBySourceRow{}
+	for rows.Next() {
+		var i ListIndexStatsBySourceRow
+		if err := rows.Scan(
+			&i.SourceKind,
+			&i.ProjectCount,
+			&i.ConversationCount,
+			&i.MessageCount,
+			&i.SourceFileCount,
+			&i.LastIndexedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectSummaries = `-- name: ListProjectSummaries :many
 WITH project_conversations AS (
     SELECT p.id AS project_id, c.id AS conversation_id

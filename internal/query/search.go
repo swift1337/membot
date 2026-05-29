@@ -65,6 +65,10 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 	if err != nil {
 		return Response{}, err
 	}
+	agent, err := normalizeAgent(opts.Agent)
+	if err != nil {
+		return Response{}, err
+	}
 
 	q := st.Queries()
 	enableProject := int64(0)
@@ -93,6 +97,8 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		enableProject int64
 		projectID     sql.NullInt64
 		projectPath   string
+		enableAgent   int64
+		agent         string
 		enableSince   int64
 		since         sql.NullString
 		limit         int64
@@ -101,6 +107,8 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		enableProject: enableProject,
 		projectID:     projectID,
 		projectPath:   projectPath,
+		enableAgent:   boolInt64(agent != ""),
+		agent:         agent,
 		enableSince:   enableSince,
 		since:         sinceParam,
 		limit:         perSourceLimit,
@@ -111,6 +119,8 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		EnableProject: searchParams.enableProject,
 		ProjectID:     searchParams.projectID,
 		ProjectPath:   searchParams.projectPath,
+		EnableAgent:   searchParams.enableAgent,
+		Agent:         searchParams.agent,
 		EnableSince:   searchParams.enableSince,
 		Since:         searchParams.since,
 		ResultLimit:   searchParams.limit,
@@ -124,6 +134,8 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		EnableProject: searchParams.enableProject,
 		ProjectID:     searchParams.projectID,
 		ProjectPath:   searchParams.projectPath,
+		EnableAgent:   searchParams.enableAgent,
+		Agent:         searchParams.agent,
 		EnableSince:   searchParams.enableSince,
 		Since:         searchParams.since,
 		ResultLimit:   searchParams.limit,
@@ -137,6 +149,8 @@ func Search(ctx context.Context, st *store.Store, opts Options) (Response, error
 		EnableProject: searchParams.enableProject,
 		ProjectID:     searchParams.projectID,
 		ProjectPath:   searchParams.projectPath,
+		EnableAgent:   searchParams.enableAgent,
+		Agent:         searchParams.agent,
 		EnableSince:   searchParams.enableSince,
 		Since:         searchParams.since,
 		ResultLimit:   searchParams.limit,

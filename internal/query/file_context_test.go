@@ -25,8 +25,8 @@ func TestSearchFileContext(t *testing.T) {
 	now := "2026-05-26T20:57:00Z"
 
 	project, err := q.UpsertProject(ctx, generateddb.UpsertProjectParams{
-		Slug:        "Users-me-sandbox",
-		Name:        sql.NullString{String: "sandbox", Valid: true},
+		Slug: "Users-me-sandbox",
+		Name: sql.NullString{String: "sandbox", Valid: true},
 		CanonicalPath: sql.NullString{
 			String: "/Users/me/sandbox",
 			Valid:  true,
@@ -118,6 +118,67 @@ func TestSearchFileContext(t *testing.T) {
 	}
 	if len(item.MentionKinds) != 1 || item.MentionKinds[0] != "code_ref" {
 		t.Fatalf("mention_kinds = %#v", item.MentionKinds)
+	}
+}
+
+func TestSearchFileContextFiltersByAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/membot.db")
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = st.Close()
+	})
+
+	q := st.Queries()
+	project := createTestProject(t, ctx, q)
+	cursorMessage := createTestMessage(t, ctx, q, project.ID, "cursor", "read workflow.go", "cursor-files")
+	claudeMessage := createTestMessage(t, ctx, q, project.ID, "claude", "read workflow.go", "claude-files")
+
+	file, err := q.UpsertFile(ctx, generateddb.UpsertFileParams{
+		ProjectID:      sql.NullInt64{Int64: project.ID, Valid: true},
+		Path:           "/Users/me/sandbox/internal/workflow/createasset/workflow.go",
+		NormalizedPath: sql.NullString{String: "/Users/me/sandbox/internal/workflow/createasset/workflow.go", Valid: true},
+		Basename:       sql.NullString{String: "workflow.go", Valid: true},
+		Kind:           sql.NullString{String: "tool", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("UpsertFile() error = %v", err)
+	}
+	for _, message := range []generateddb.Message{cursorMessage, claudeMessage} {
+		if _, err := q.CreateFileMention(ctx, generateddb.CreateFileMentionParams{
+			FileID:      file.ID,
+			MessageID:   sql.NullInt64{Int64: message.ID, Valid: true},
+			MentionKind: "tool_read",
+		}); err != nil {
+			t.Fatalf("CreateFileMention() error = %v", err)
+		}
+	}
+
+	allResp, err := SearchFileContext(ctx, st, FileContextOptions{FilenameOrPath: "workflow.go", Limit: 10})
+	if err != nil {
+		t.Fatalf("SearchFileContext() all error = %v", err)
+	}
+	if len(allResp.Result) != 2 {
+		t.Fatalf("all len = %d, want 2: %#v", len(allResp.Result), allResp.Result)
+	}
+
+	claudeResp, err := SearchFileContext(ctx, st, FileContextOptions{
+		FilenameOrPath: "workflow.go",
+		Agent:          "claude",
+		Limit:          10,
+	})
+	if err != nil {
+		t.Fatalf("SearchFileContext() claude error = %v", err)
+	}
+	if claudeResp.Agent != "claude" {
+		t.Fatalf("response agent = %q, want claude", claudeResp.Agent)
+	}
+	if len(claudeResp.Result) != 1 || claudeResp.Result[0].ConversationID != claudeMessage.ConversationID {
+		t.Fatalf("claude result = %#v, want conversation %d", claudeResp.Result, claudeMessage.ConversationID)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -167,18 +168,94 @@ func newIndexStatsCommand(openStore func(*cobra.Command) (*store.Store, error)) 
 			if err != nil {
 				return err
 			}
+			sourceRows, err := db.Queries().ListIndexStatsBySource(cmd.Context())
+			if err != nil {
+				return err
+			}
 
+			dbSize := dbSizeBytes(db.Path())
+			lastChangeAt := sqliteText(stats.LastIndexedAt)
+			sources := make(map[string]map[string]any, len(sourceRows))
+			for _, row := range sourceRows {
+				lastIndexedAt := sqliteText(row.LastIndexedAt)
+				sources[row.SourceKind] = map[string]any{
+					"project_count":      row.ProjectCount,
+					"conversation_count": row.ConversationCount,
+					"message_count":      row.MessageCount,
+					"source_file_count":  row.SourceFileCount,
+					"last_change_at":     lastIndexedAt,
+					"last_change_ago":    relativeAge(lastIndexedAt),
+				}
+			}
 			return writeJSON(cmd, map[string]any{
 				"db_path":            db.Path(),
-				"db_size_bytes":      dbSizeBytes(db.Path()),
+				"db_size_bytes":      dbSize,
+				"db_size":            humanBytes(dbSize),
 				"project_count":      stats.ProjectCount,
 				"conversation_count": stats.ConversationCount,
 				"message_count":      stats.MessageCount,
 				"source_file_count":  stats.SourceFileCount,
-				"last_change_at":     sqliteText(stats.LastIndexedAt),
+				"last_change_at":     lastChangeAt,
+				"last_change_ago":    relativeAge(lastChangeAt),
+				"sources":            sources,
 			})
 		},
 	}
+}
+
+func relativeAge(value string) string {
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return ""
+	}
+
+	duration := time.Since(parsed)
+	if duration < 0 {
+		duration = -duration
+	}
+
+	switch {
+	case duration < time.Minute:
+		return "just now"
+	case duration < time.Hour:
+		return pluralizeDuration(int(duration/time.Minute), "minute") + " ago"
+	case duration < 24*time.Hour:
+		return pluralizeDuration(int(duration/time.Hour), "hour") + " ago"
+	case duration < 7*24*time.Hour:
+		return pluralizeDuration(int(duration/(24*time.Hour)), "day") + " ago"
+	case duration < 30*24*time.Hour:
+		return pluralizeDuration(int(duration/(7*24*time.Hour)), "week") + " ago"
+	case duration < 365*24*time.Hour:
+		return pluralizeDuration(int(duration/(30*24*time.Hour)), "month") + " ago"
+	default:
+		return pluralizeDuration(int(duration/(365*24*time.Hour)), "year") + " ago"
+	}
+}
+
+func pluralizeDuration(value int, unit string) string {
+	if value == 1 {
+		return fmt.Sprintf("1 %s", unit)
+	}
+	return fmt.Sprintf("%d %ss", value, unit)
+}
+
+func humanBytes(bytes int64) string {
+	if bytes < 0 {
+		return ""
+	}
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	value := float64(bytes)
+	units := []string{"KB", "MB", "GB", "TB"}
+	for _, suffix := range units {
+		value /= unit
+		if value < unit {
+			return fmt.Sprintf("%.1f %s", value, suffix)
+		}
+	}
+	return fmt.Sprintf("%.1f PB", value/unit)
 }
 
 func newServiceCommand(dbPath *string) *cobra.Command {

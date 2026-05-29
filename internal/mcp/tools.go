@@ -13,6 +13,7 @@ import (
 type searchInput struct {
 	Query   string `json:"query" jsonschema:"required search text; supports uppercase AND, OR, and parentheses, e.g. (sqlite OR sqlc) AND migration"`
 	Project string `json:"project,omitempty" jsonschema:"optional project name slug or filesystem path to narrow results"`
+	Agent   string `json:"agent,omitempty" jsonschema:"optional indexed agent source: cursor or claude"`
 	Since   string `json:"since,omitempty" jsonschema:"optional time window such as yesterday 3h or 1 week"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"maximum hits to return default 20 max 100"`
 }
@@ -21,6 +22,7 @@ func (s *server) search(ctx context.Context, _ *sdkmcp.CallToolRequest, in searc
 	resp, err := query.Search(ctx, s.store, query.Options{
 		Query:   in.Query,
 		Project: in.Project,
+		Agent:   in.Agent,
 		Since:   in.Since,
 		Limit:   in.Limit,
 	})
@@ -33,6 +35,7 @@ func (s *server) search(ctx context.Context, _ *sdkmcp.CallToolRequest, in searc
 type searchFileContextInput struct {
 	FilenameOrPath string `json:"filename_or_path" jsonschema:"required filename basename or path fragment such as cmd_localnet.sh or internal/mcp"`
 	Project        string `json:"project,omitempty" jsonschema:"optional but recommended project name slug or path when filenames are common"`
+	Agent          string `json:"agent,omitempty" jsonschema:"optional indexed agent source: cursor or claude"`
 	Limit          int    `json:"limit,omitempty" jsonschema:"maximum conversation hits to return default 20 max 100"`
 }
 
@@ -40,6 +43,7 @@ func (s *server) searchFileContext(ctx context.Context, _ *sdkmcp.CallToolReques
 	resp, err := query.SearchFileContext(ctx, s.store, query.FileContextOptions{
 		FilenameOrPath: in.FilenameOrPath,
 		Project:        in.Project,
+		Agent:          in.Agent,
 		Limit:          in.Limit,
 	})
 	if err != nil {

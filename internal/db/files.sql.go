@@ -35,6 +35,7 @@ FROM files f
 JOIN file_mentions fm ON fm.file_id = f.id
 JOIN messages m ON m.id = fm.message_id
 JOIN conversations c ON c.id = m.conversation_id
+JOIN sources s ON s.id = c.source_id
 LEFT JOIN projects p ON p.id = f.project_id
 WHERE (
   ?1 = 0
@@ -47,20 +48,23 @@ WHERE (
     )
   )
 )
+  AND (?4 = 0 OR s.kind = ?5)
   AND (
-    (?4 != '' AND f.basename = ?4)
-    OR coalesce(f.normalized_path, f.path) LIKE ?5
-    OR coalesce(f.normalized_path, f.path) LIKE ?6
+    (?6 != '' AND f.basename = ?6)
+    OR coalesce(f.normalized_path, f.path) LIKE ?7
+    OR coalesce(f.normalized_path, f.path) LIKE ?8
   )
 GROUP BY f.id, c.id
 ORDER BY last_mentioned_at DESC, f.path, c.id
-LIMIT ?7
+LIMIT ?9
 `
 
 type SearchFileContextParams struct {
 	EnableProject interface{}    `json:"enable_project"`
 	ProjectID     sql.NullInt64  `json:"project_id"`
 	ProjectPath   interface{}    `json:"project_path"`
+	EnableAgent   interface{}    `json:"enable_agent"`
+	Agent         string         `json:"agent"`
 	Basename      interface{}    `json:"basename"`
 	PathContains  sql.NullString `json:"path_contains"`
 	PathSuffix    sql.NullString `json:"path_suffix"`
@@ -85,6 +89,8 @@ func (q *Queries) SearchFileContext(ctx context.Context, arg SearchFileContextPa
 		arg.EnableProject,
 		arg.ProjectID,
 		arg.ProjectPath,
+		arg.EnableAgent,
+		arg.Agent,
 		arg.Basename,
 		arg.PathContains,
 		arg.PathSuffix,
