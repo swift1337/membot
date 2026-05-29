@@ -7,9 +7,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/swift1337/membot/internal/indexer"
+	"github.com/swift1337/membot/internal/indexer/claude"
 	"github.com/swift1337/membot/internal/indexer/cursor"
-	"github.com/swift1337/membot/internal/system/macos"
 	"github.com/swift1337/membot/internal/store"
+	"github.com/swift1337/membot/internal/system/macos"
 )
 
 func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
@@ -60,6 +61,47 @@ func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 	cursorCmd.Flags().BoolVar(&cursorReindex, "reindex", false, "Delete the database file before indexing")
 
 	var (
+		claudeRoot    string
+		claudeReindex bool
+	)
+	claudeCmd := &cobra.Command{
+		Use:   "claude",
+		Short: "Index local Claude Code project transcripts",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := openStore(cmd)
+			if err != nil {
+				return err
+			}
+
+			if claudeReindex {
+				dbPath := db.Path()
+				if err := db.Close(); err != nil {
+					return err
+				}
+				if err := store.RemoveDatabaseFiles(dbPath); err != nil {
+					return err
+				}
+				db, err = openStore(cmd)
+				if err != nil {
+					return err
+				}
+			}
+			defer func() {
+				_ = db.Close()
+			}()
+
+			result, err := claude.Index(cmd.Context(), db, claude.Options{Root: claudeRoot})
+			if err != nil {
+				return err
+			}
+
+			return writeJSON(cmd, result)
+		},
+	}
+	claudeCmd.Flags().StringVar(&claudeRoot, "root", claude.DefaultRoot(), "Claude Code data root")
+	claudeCmd.Flags().BoolVar(&claudeReindex, "reindex", false, "Delete the database file before indexing")
+
+	var (
 		watch    bool
 		interval time.Duration
 		lockPath string
@@ -77,6 +119,7 @@ func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 			}()
 
 			opts := indexer.AllOptions{
+				Claude: indexer.ClaudeOptions{Root: claudeRoot},
 				Cursor: indexer.CursorOptions{Root: cursorRoot},
 			}
 			if !watch {
@@ -97,12 +140,13 @@ func newIndexCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobr
 			})
 		},
 	}
+	allCmd.Flags().StringVar(&claudeRoot, "claude-root", claude.DefaultRoot(), "Claude Code data root")
 	allCmd.Flags().StringVar(&cursorRoot, "cursor-root", cursor.DefaultRoot(), "Cursor projects root")
 	allCmd.Flags().BoolVar(&watch, "watch", false, "Keep indexing on an interval until interrupted")
 	allCmd.Flags().DurationVar(&interval, "interval", 120*time.Second, "Time between index runs when --watch is set")
 	allCmd.Flags().StringVar(&lockPath, "lock", indexer.DefaultLockPath(), "Index lock file path when --watch is set")
 
-	cmd.AddCommand(cursorCmd, allCmd, newIndexStatsCommand(openStore))
+	cmd.AddCommand(cursorCmd, claudeCmd, allCmd, newIndexStatsCommand(openStore))
 	return cmd
 }
 

@@ -28,6 +28,18 @@ Index Cursor project transcripts from the default Cursor projects directory:
 membot index cursor
 ```
 
+Index Claude Code project transcripts from the default Claude data directory:
+
+```sh
+membot index claude
+```
+
+Index every supported local assistant source:
+
+```sh
+membot index all
+```
+
 The Cursor indexer records both transcript workspaces and repos referenced by
 `.code-workspace` files. Workspace folders can appear with `0 chats` when Cursor
 has no transcripts directly under that workspace, but related chats are still
@@ -37,6 +49,12 @@ Use a custom Cursor projects root:
 
 ```sh
 membot index cursor --root ~/.cursor/projects
+```
+
+Use a custom Claude Code data root:
+
+```sh
+membot index claude --root ~/.claude
 ```
 
 Rebuild the database from scratch:
