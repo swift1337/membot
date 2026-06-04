@@ -14,6 +14,7 @@ func TestNormalizeAgent(t *testing.T) {
 		{name: "cursor", input: "cursor", want: "cursor"},
 		{name: "claude", input: "Claude", want: "claude"},
 		{name: "claude code alias", input: "claude-code", want: "claude"},
+		{name: "codex", input: "Codex", want: "codex"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -33,7 +34,7 @@ func TestNormalizeAgent(t *testing.T) {
 func TestNormalizeAgentRejectsUnknown(t *testing.T) {
 	t.Parallel()
 
-	if _, err := normalizeAgent("codex"); err == nil {
+	if _, err := normalizeAgent("windsurf"); err == nil {
 		t.Fatal("normalizeAgent() error = nil, want error")
 	}
 }

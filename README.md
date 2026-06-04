@@ -1,7 +1,17 @@
+<p align="center">
+  <img src=".github/static/banner.png" height="200" alt="membot banner">
+</p>
+
 # Membot
 
 `membot` indexes local assistant history into a memory store so you
 can search past conversations, related files, and tool calls.
+
+## Supported agents
+
+- [x] Cursor: project transcripts, tool calls, and repos referenced by VS-code workspaces
+- [x] Claude Code: project transcripts from the Claude data directory
+- [x] Codex: CLI and Desktop transcripts from the durable Codex data directory
 
 ## Features
 
@@ -12,10 +22,6 @@ can search past conversations, related files, and tool calls.
 - [x] MCP server exposing the same search over the Model Context Protocol
 - [x] Background indexing via a macOS LaunchAgent (`membot service install/uninstall/status`)
 
-## Supported agents
-
-- [x] Cursor: project transcripts, tool calls, and repos referenced by `.code-workspace` files
-- [x] Claude Code: project transcripts from the Claude data directory
 
 ## Install
 
@@ -48,6 +54,12 @@ Index Claude Code project transcripts from the default Claude data directory:
 membot index claude
 ```
 
+Index Codex transcripts from the default Codex data directory:
+
+```sh
+membot index codex
+```
+
 Index every supported local assistant source:
 
 ```sh
@@ -69,6 +81,12 @@ Use a custom Claude Code data root:
 
 ```sh
 membot index claude --root ~/.claude
+```
+
+Use a custom Codex data root:
+
+```sh
+membot index codex --root ~/.codex
 ```
 
 Rebuild the database from scratch:
@@ -108,6 +126,7 @@ Filter results to one indexed assistant source:
 
 ```sh
 membot query "workflow" --agent claude --text
+membot query "project context" --agent codex --text
 membot query files workflow.go --agent cursor --project sandbox --text
 ```
 
@@ -174,8 +193,8 @@ and serves whatever is already in the database.
 
 | Tool | Description |
 | --- | --- |
-| `search` | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor` or `claude`), `since`, `limit`. Same as `membot query`. |
-| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor` or `claude`), `limit`. Same as `membot query files`. |
+| `search` | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `since`, `limit`. Same as `membot query`. |
+| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `limit`. Same as `membot query files`. |
 | `list_projects` | List indexed workspaces with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
 
 ## Development

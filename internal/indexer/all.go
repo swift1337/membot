@@ -5,9 +5,14 @@ import (
 	"fmt"
 
 	"github.com/swift1337/membot/internal/indexer/claude"
+	"github.com/swift1337/membot/internal/indexer/codex"
 	"github.com/swift1337/membot/internal/indexer/cursor"
 	"github.com/swift1337/membot/internal/store"
 )
+
+type CodexOptions struct {
+	Root string
+}
 
 type ClaudeOptions struct {
 	Root string
@@ -18,6 +23,7 @@ type CursorOptions struct {
 }
 
 type AllOptions struct {
+	Codex  CodexOptions
 	Claude ClaudeOptions
 	Cursor CursorOptions
 }
@@ -40,6 +46,10 @@ func IndexAll(ctx context.Context, st *store.Store, opts AllOptions) (AllResult,
 	if err != nil {
 		return AllResult{}, fmt.Errorf("index claude: %w", err)
 	}
+	codexResult, err := codex.Index(ctx, st, codex.Options{Root: opts.Codex.Root})
+	if err != nil {
+		return AllResult{}, fmt.Errorf("index codex: %w", err)
+	}
 
 	return AllResult{
 		Indexers: []NamedResult{
@@ -50,6 +60,10 @@ func IndexAll(ctx context.Context, st *store.Store, opts AllOptions) (AllResult,
 			{
 				Name:   "claude",
 				Result: claudeResult,
+			},
+			{
+				Name:   "codex",
+				Result: codexResult,
 			},
 		},
 	}, nil

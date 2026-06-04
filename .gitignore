@@ -8,3 +8,6 @@
 *.sqlite-wal
 .DS_Store
 todo.md
+
+.vscode
+.cursor
