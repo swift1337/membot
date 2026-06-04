@@ -25,12 +25,22 @@ can search past conversations, related files, and tool calls.
 
 ## Install
 
+Install directly with Go, without cloning the repo:
+
+```bash
+go install github.com/swift1337/membot/cmd/membot@latest
+membot init
+membot service install
+```
+
+Or install from a local checkout:
+
 ```sh
 make install
 ```
 
-This installs the `membot` CLI with `go install ./cmd/membot`. For a local
-binary instead, run:
+`make install` installs the `membot` CLI with `go install ./cmd/membot`. For a
+local binary instead, run:
 
 ```sh
 make build
@@ -39,6 +49,10 @@ make build
 
 By default, `membot` creates and migrates its SQLite database at
 `~/.membot/membot.db`. Use `--db /path/to/membot.db` to override it.
+
+On macOS, `membot service install` installs a LaunchAgent that runs
+`membot index all --watch` in the background. Check it with
+`membot service status` and remove it with `membot service uninstall`.
 
 ## Index
 
@@ -183,11 +197,11 @@ the MCP server is read-only and serves whatever is already in the database.
 
 ### Tools
 
-| Tool | Description |
-| --- | --- |
-| `search` | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `since`, `limit`. Same as `membot query`. |
-| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `limit`. Same as `membot query files`. |
-| `list_projects` | List indexed projects with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
+| Tool                  | Description                                                                                                                                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search`              | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `since`, `limit`. Same as `membot query`. |
+| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `limit`. Same as `membot query files`.                                                                  |
+| `list_projects`       | List indexed projects with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`.                                                                                                                                        |
 
 ## Development
 
