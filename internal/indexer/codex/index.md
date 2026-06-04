@@ -20,7 +20,8 @@ Codex keeps durable CLI and Desktop transcripts under the user's home directory:
 
 **Default root:** `~/.codex` (`codex.DefaultRoot()`).
 
-Override with `membot index codex --root /path/to/.codex`.
+The `membot index codex` command uses this default root. To index a custom
+Codex root, use `membot index all --codex-root /path/to/.codex`.
 
 `~/Library/Application Support/Codex` is Desktop UI/runtime profile state. It
 contains app diagnostics, profile data, caches, and telemetry-related state, not
@@ -92,7 +93,7 @@ system/developer/base instructions are not made searchable.
 
 Entry point: `codex.Index(ctx, store, Options{Root})`.
 
-CLI: `membot index codex [--root PATH] [--reindex]`.
+CLI: `membot index codex [--reindex]`.
 
 ```text
 discover(root/sessions)

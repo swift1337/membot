@@ -24,7 +24,8 @@ Cursor keeps per-workspace metadata under the user's home directory:
 
 **Default root:** `~/.cursor/projects` (`cursor.DefaultRoot()`).
 
-Override with `membot index cursor --root /path/to/projects`.
+The `membot index cursor` command uses this default root. To index a custom
+Cursor root, use `membot index all --cursor-root /path/to/projects`.
 
 ### Project slugs
 
@@ -181,7 +182,7 @@ too. Tags like `<timestamp>` are also used for timestamp extraction.
 
 Entry point: `cursor.Index(ctx, store, Options{Root})`.
 
-CLI: `membot index cursor [--root PATH] [--reindex]`.
+CLI: `membot index cursor [--reindex]`.
 
 ### Pipeline overview
 
@@ -352,8 +353,7 @@ run, including `.code-workspace` folders and projects with no transcript files.
 | `internal/indexer/cursor/tools.go` | Tool call indexing and tool-path file extraction |
 | `internal/indexer/cursor/indexer_test.go` | Timestamp, mention, and tool parsing tests |
 | `cmd/membot/main.go` | CLI commands (`index cursor`, `query`, `query files`, `mcp`) |
-| `internal/store/migrations/001_initial.sql` | Schema + FTS triggers |
-| `internal/store/migrations/002_file_basename.sql` | `files.basename` column + index |
+| `internal/store/migrations/001_initial.sql` | Schema, FTS triggers, and `files.basename` |
 | `internal/query/search.go` | Full-text search over messages, memory, artifacts |
 | `internal/query/file_context.go` | File-to-conversation lookup |
 | `internal/mcp/` | MCP server exposing `search`, `search_file_context`, `list_projects` |

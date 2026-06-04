@@ -16,10 +16,10 @@ can search past conversations, related files, and tool calls.
 ## Features
 
 - [x] CLI to index, query, and inspect local assistant history from the terminal
-- [x] Boolean full-text search (`AND`, `OR`, parentheses) with project, source, and time (`--since`) filters
+- [x] Boolean full-text search (`AND`, `OR`, parentheses) with project, agent, and time (`--since`) filters
 - [x] JSON or formatted (`--text`) output
 - [x] File context search to find conversations that touched a given file by name or path
-- [x] MCP server exposing the same search over the Model Context Protocol
+- [x] MCP server exposing search, file context, and project listing over the Model Context Protocol
 - [x] Background indexing via a macOS LaunchAgent (`membot service install/uninstall/status`)
 
 
@@ -71,22 +71,14 @@ The Cursor indexer records both transcript workspaces and repos referenced by
 has no transcripts directly under that workspace, but related chats are still
 counted when tool working directories or file mentions point inside that repo.
 
-Use a custom Cursor projects root:
+The per-agent index commands use their default roots. To index custom roots,
+use `membot index all` with the source-specific root flags:
 
 ```sh
-membot index cursor --root ~/.cursor/projects
-```
-
-Use a custom Claude Code data root:
-
-```sh
-membot index claude --root ~/.claude
-```
-
-Use a custom Codex data root:
-
-```sh
-membot index codex --root ~/.codex
+membot index all \
+  --cursor-root ~/.cursor/projects \
+  --claude-root ~/.claude \
+  --codex-root ~/.codex
 ```
 
 Rebuild the database from scratch:
@@ -122,7 +114,7 @@ Limit results to a project and recent history:
 membot query "tool calls" --project membot --since 1w --limit 10 --text
 ```
 
-Filter results to one indexed assistant source:
+Filter results to one indexed assistant agent:
 
 ```sh
 membot query "workflow" --agent claude --text
@@ -186,8 +178,8 @@ After `make install`, add this to your Cursor MCP config
 If `membot` is not on your `PATH`, use the full path to the binary instead
 (for example, the output of `go env GOPATH` plus `/bin/membot`).
 
-Index transcripts first (`membot index cursor`); the MCP server is read-only
-and serves whatever is already in the database.
+Index transcripts first (`membot index all`, or the per-agent source you need);
+the MCP server is read-only and serves whatever is already in the database.
 
 ### Tools
 
@@ -195,7 +187,7 @@ and serves whatever is already in the database.
 | --- | --- |
 | `search` | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `since`, `limit`. Same as `membot query`. |
 | `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `limit`. Same as `membot query files`. |
-| `list_projects` | List indexed workspaces with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
+| `list_projects` | List indexed projects with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`. |
 
 ## Development
 

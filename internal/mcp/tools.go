@@ -53,7 +53,7 @@ func (s *server) searchFileContext(ctx context.Context, _ *sdkmcp.CallToolReques
 }
 
 type listProjectsOutput struct {
-	Projects []generateddb.ListProjectSummariesRow `json:"projects" jsonschema:"indexed workspaces with slug path and conversation counts"`
+	Projects []generateddb.ListProjectSummariesRow `json:"projects" jsonschema:"indexed projects with slug path and conversation counts"`
 }
 
 func (s *server) listProjects(ctx context.Context, _ *sdkmcp.CallToolRequest, _ struct{}) (*sdkmcp.CallToolResult, listProjectsOutput, error) {

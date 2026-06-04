@@ -30,7 +30,7 @@ func Run(ctx context.Context, st *store.Store) error {
 
 	sdkmcp.AddTool(sdkServer, &sdkmcp.Tool{
 		Name: "list_projects",
-		Description: "List indexed Cursor workspaces with conversation counts. Use the returned " +
+		Description: "List indexed projects with conversation counts. Use the returned " +
 			"name, slug, or path as the project filter in search and search_file_context.",
 	}, srv.listProjects)
 

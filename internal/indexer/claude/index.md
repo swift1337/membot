@@ -1,7 +1,7 @@
 # Claude Code transcript indexing
 
 This document explains how Claude Code stores assistant history on disk and how
-`membot` discovers, parses, and scrapes it. It covers the on-disk layout and the
+`membot` discovers, parses, and indexes it. It covers the on-disk layout and the
 parsing rules only — not the CLI or the database.
 
 ## Where Claude Code stores data
@@ -12,7 +12,7 @@ indexer's **root** is `~/.claude` (`claude.DefaultRoot()`) and it reads the
 
 ```
 ~/.claude/
-├── projects/                           # ← scraped
+├── projects/                           # indexed
 │   ├── -Users-alice-Code-myapp/        # project slug (see below)
 │   │   ├── <session-uuid>.jsonl        # parent session transcript
 │   │   ├── <session-uuid>.jsonl
@@ -149,7 +149,7 @@ Timestamps are normalized to UTC. A line with no parseable timestamp falls back
 to the source file's modification time. Conversation start/end are the first and
 last resolved line timestamps (`conversationTimes`).
 
-## How membot scrapes a transcript
+## How membot indexes a transcript
 
 ```
 discover(root/projects)
@@ -202,7 +202,7 @@ mention.
 
 Malformed JSON lines are **not** fatal. They are recorded with line number, error
 text, and a SHA-256 hash of the raw line. Valid lines in the same file are still
-scraped.
+indexed.
 
 ## Code map
 

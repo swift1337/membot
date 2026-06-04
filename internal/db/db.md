@@ -29,7 +29,7 @@ erDiagram
 
     sources {
         int id PK
-        text kind "cursor | claude"
+        text kind "cursor | claude | codex"
         text root_path
         text display_name
         text created_at
@@ -147,7 +147,7 @@ erDiagram
 
 | Table            | Purpose                                                                                                                                                                                          |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sources`        | One row per indexed agent root. `kind` is `cursor` or `claude`; unique on `(kind, root_path)`.                                                                                                   |
+| `sources`        | One row per indexed agent root. `kind` is `cursor`, `claude`, or `codex`; unique on `(kind, root_path)`.                                                                                         |
 | `projects`       | Workspaces/repos. Unique on `slug`; `canonical_path` reconstructed from the slug when possible.                                                                                                  |
 | `source_files`   | Each indexed transcript file with `sha256`, `mtime_unix`, `size_bytes`, and `parser_version` for incremental skip. Unique on `(source_id, path)`.                                                |
 | `conversations`  | A chat session (one transcript file). `external_id` is the file UUID; `parent_external_id` + `is_subagent` link subagent runs. Unique on `(source_id, external_id)`.                             |
@@ -187,7 +187,7 @@ Search joins `message_fts` back to `messages` → `conversations` → `projects`
   stored as INTEGER `0`/`1`.
 - Re-indexing a changed transcript replaces that conversation's rows within a
   single transaction; `--reindex` drops the whole database.
-- See [`internal/indexer/cursor/index.md`](../indexer/cursor/index.md) and
-  [`internal/indexer/claude/index.md`](../indexer/claude/index.md) for how each
+- See [`internal/indexer/cursor/index.md`](../indexer/cursor/index.md),
+  [`internal/indexer/claude/index.md`](../indexer/claude/index.md), and
+  [`internal/indexer/codex/index.md`](../indexer/codex/index.md) for how each
   source maps onto these tables.
-```
