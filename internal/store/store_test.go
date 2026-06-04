@@ -32,3 +32,19 @@ func TestRemoveDatabaseFilesDeletesDB(t *testing.T) {
 		t.Fatalf("expected %s to be removed, stat err = %v", dbPath, err)
 	}
 }
+
+func TestOpenLimitsConnectionPool(t *testing.T) {
+	t.Parallel()
+
+	st, err := Open(context.Background(), filepath.Join(t.TempDir(), "membot.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer func() {
+		_ = st.Close()
+	}()
+
+	if got := st.DB().Stats().MaxOpenConnections; got != 1 {
+		t.Fatalf("MaxOpenConnections = %d, want 1", got)
+	}
+}
