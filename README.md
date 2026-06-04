@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/static/banner.png" height="200" alt="membot banner">
+  <img src=".github/static/banner.png" alt="Membot Banner">
 </p>
 
 # Membot

@@ -1,204 +1,100 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/swift1337/membot/internal/query"
+	"github.com/swift1337/membot/internal/indexer"
+	"github.com/swift1337/membot/internal/indexer/claude"
+	"github.com/swift1337/membot/internal/indexer/codex"
+	"github.com/swift1337/membot/internal/indexer/cursor"
 	"github.com/swift1337/membot/internal/store"
 )
 
+var cmdRoot = &cobra.Command{
+	Use:           "membot",
+	Short:         "Long-term AI memory",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+}
+
+var cmdInit = &cobra.Command{
+	Use:   "init",
+	Short: "Create and migrate database",
+	RunE:  runInit,
+}
+
 func main() {
-	if err := newRootCommand().Execute(); err != nil {
+	if err := setup(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if err := cmdRoot.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func newRootCommand() *cobra.Command {
-	var dbPath string
+func setup() error {
+	// Commands
+	cmdRoot.AddCommand(cmdInit)
 
-	openStore := func(cmd *cobra.Command) (*store.Store, error) {
-		return store.Open(cmd.Context(), dbPath)
-	}
+	cmdRoot.AddCommand(cmdIndex)
+	cmdIndex.AddCommand(cmdIndexCursor, cmdIndexClaude, cmdIndexCodex, cmdIndexAll, cmdIndexStats)
 
-	cmd := &cobra.Command{
-		Use:           "membot",
-		Short:         "Index local assistant history into searchable memory",
-		SilenceUsage:  true,
-		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
-	}
+	cmdRoot.AddCommand(cmdService)
+	cmdService.AddCommand(cmdServiceInstall, cmdServiceUninstall, cmdServiceStatus)
 
-	cmd.PersistentFlags().StringVar(&dbPath, "db", store.DefaultPath(), "SQLite database path")
+	cmdRoot.AddCommand(cmdQuery)
+	cmdQuery.AddCommand(cmdQueryFiles, cmdQueryProjects)
 
-	cmd.AddCommand(&cobra.Command{
-		Use:   "init",
-		Short: "Create and migrate the membot database",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = db.Close()
-			}()
+	cmdRoot.AddCommand(cmdMCP)
 
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "membot database ready: %s\n", db.Path())
-			return err
-		},
-	})
-	cmd.AddCommand(newIndexCommand(openStore))
-	cmd.AddCommand(newServiceCommand(&dbPath))
-	cmd.AddCommand(newQueryCommand(openStore))
-	cmd.AddCommand(newMCPCommand(openStore))
+	// Flags
+	cmdRoot.PersistentFlags().StringVar(&runtimeConfig.DBPath, "db", store.DefaultPath(), "Database path")
 
-	return cmd
+	// Query
+	cmdQuery.PersistentFlags().StringVarP(&runtimeConfig.Query.Project, "project", "p", "", "Filter by project name, slug, or path")
+	cmdQuery.PersistentFlags().StringVar(&runtimeConfig.Query.Agent, "agent", "", "Filter by indexed agent source: cursor, claude, or codex")
+	cmdQuery.PersistentFlags().BoolVar(&runtimeConfig.Query.Text, "text", false, "Render results as formatted text instead of JSON")
+	cmdQuery.PersistentFlags().IntVar(&runtimeConfig.Query.Limit, "limit", runtimeConfig.Query.Limit, "Maximum number of results")
+	cmdQuery.Flags().StringVar(&runtimeConfig.Query.Since, "since", "", "Only include results since this time (e.g. yesterday, 3h, 1 week)")
+	cmdQuery.Flags().StringVar(&runtimeConfig.Query.OrderBy, "order-by", runtimeConfig.Query.OrderBy, "Sort results by score, date-desc, or date-asc")
+
+	cmdIndex.PersistentFlags().BoolVar(&runtimeConfig.Indexing.Reindex, "reindex", false, "Reindex from scratch")
+	cmdIndexAll.Flags().StringVar(&runtimeConfig.Indexing.ClaudeRoot, "claude-root", claude.DefaultRoot(), "Claude Code data root")
+	cmdIndexAll.Flags().StringVar(&runtimeConfig.Indexing.CodexRoot, "codex-root", codex.DefaultRoot(), "Codex data root")
+	cmdIndexAll.Flags().StringVar(&runtimeConfig.Indexing.CursorRoot, "cursor-root", cursor.DefaultRoot(), "Cursor projects root")
+	cmdIndexAll.Flags().BoolVar(&runtimeConfig.Indexing.Watch, "watch", false, "Keep indexing on an interval until interrupted")
+	cmdIndexAll.Flags().DurationVar(&runtimeConfig.Indexing.Interval, "interval", defaultIndexInterval, "Time between index runs when --watch is set")
+	cmdIndexAll.Flags().StringVar(&runtimeConfig.Indexing.LockPath, "lock", indexer.DefaultLockPath(), "Index lock file path when --watch is set")
+
+	cmdServiceInstall.Flags().StringVar(&runtimeConfig.Service.MembotPath, "membot", "", "Path to the membot binary (default: lookup on PATH)")
+	cmdServiceInstall.Flags().DurationVar(&runtimeConfig.Service.Interval, "interval", defaultServiceInterval, "Background index interval")
+
+	return nil
 }
 
-func newQueryCommand(openStore func(*cobra.Command) (*store.Store, error)) *cobra.Command {
-	var (
-		projectFlag string
-		agentFlag   string
-		sinceFlag   string
-		textFlag    bool
-		limitFlag   int
-		orderByFlag string
-	)
-
-	cmd := &cobra.Command{
-		Use:     "query [query string]",
-		Aliases: []string{"q"},
-		Short:   "Query indexed memory as JSON",
-		Long: `Search indexed assistant conversation messages.
-
-Query syntax supports AND, OR, and parentheses. Adjacent terms are AND'd.
-Use single quotes in the shell when the query contains parentheses.
-
-Examples:
-  membot query 'migration sqlc'
-  membot query '(foo OR bar) AND fizz' --project membot --text`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
-
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = db.Close()
-			}()
-
-			response, err := query.Search(cmd.Context(), db, query.Options{
-				Query:   strings.Join(args, " "),
-				Project: projectFlag,
-				Agent:   agentFlag,
-				Since:   sinceFlag,
-				Limit:   limitFlag,
-				OrderBy: query.OrderBy(orderByFlag),
-			})
-			if err != nil {
-				return err
-			}
-
-			if textFlag {
-				_, err = fmt.Fprintln(cmd.OutOrStdout(), query.RenderText(response))
-				return err
-			}
-			return writeJSON(cmd, response)
-		},
+func runInit(cmd *cobra.Command, args []string) error {
+	db, err := openStore(cmd.Context())
+	if err != nil {
+		return err
 	}
 
-	cmd.Flags().StringVarP(&projectFlag, "project", "p", "", "Filter by project name, slug, or path")
-	cmd.Flags().StringVar(&agentFlag, "agent", "", "Filter by indexed agent source: cursor, claude, or codex")
-	cmd.Flags().StringVar(&sinceFlag, "since", "", "Only include results since this time (e.g. yesterday, 3h, 1 week)")
-	cmd.Flags().BoolVar(&textFlag, "text", false, "Render results as formatted text instead of JSON")
-	cmd.Flags().IntVar(&limitFlag, "limit", 20, "Maximum number of results")
-	cmd.Flags().StringVar(&orderByFlag, "order-by", "score", "Sort results by score, date-desc, or date-asc")
+	defer func() {
+		_ = db.Close()
+	}()
 
-	var (
-		filesProjectFlag string
-		filesAgentFlag   string
-		filesTextFlag    bool
-		filesLimitFlag   int
-		projectsTextFlag bool
-	)
-	filesCmd := &cobra.Command{
-		Use:     "files <filename-or-path>",
-		Aliases: []string{"f"},
-		Short:   "Find conversations that referenced a file by name or path",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
+	return nil
+}
 
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = db.Close()
-			}()
-
-			response, err := query.SearchFileContext(cmd.Context(), db, query.FileContextOptions{
-				FilenameOrPath: strings.Join(args, " "),
-				Project:        filesProjectFlag,
-				Agent:          filesAgentFlag,
-				Limit:          filesLimitFlag,
-			})
-			if err != nil {
-				return err
-			}
-
-			if filesTextFlag {
-				_, err = fmt.Fprintln(cmd.OutOrStdout(), query.RenderFileContextText(response))
-				return err
-			}
-			return writeJSON(cmd, response)
-		},
-	}
-	filesCmd.Flags().StringVarP(&filesProjectFlag, "project", "p", "", "Filter by project name, slug, or path")
-	filesCmd.Flags().StringVar(&filesAgentFlag, "agent", "", "Filter by indexed agent source: cursor, claude, or codex")
-	filesCmd.Flags().BoolVar(&filesTextFlag, "text", false, "Render results as formatted text instead of JSON")
-	filesCmd.Flags().IntVar(&filesLimitFlag, "limit", 20, "Maximum number of results")
-	cmd.AddCommand(filesCmd)
-
-	projectsCmd := &cobra.Command{
-		Use:   "projects",
-		Short: "List indexed projects",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := openStore(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = db.Close()
-			}()
-
-			projects, err := db.Queries().ListProjectSummaries(cmd.Context())
-			if err != nil {
-				return err
-			}
-
-			if projectsTextFlag {
-				_, err = fmt.Fprintln(cmd.OutOrStdout(), query.RenderProjectsText(projects))
-				return err
-			}
-			return writeJSON(cmd, projects)
-		},
-	}
-	projectsCmd.Flags().BoolVar(&projectsTextFlag, "text", false, "Render projects as formatted text instead of JSON")
-	cmd.AddCommand(projectsCmd)
-
-	return cmd
+func openStore(ctx context.Context) (*store.Store, error) {
+	return store.Open(ctx, runtimeConfig.DBPath)
 }
 
 func writeJSON(cmd *cobra.Command, value any) error {
