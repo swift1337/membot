@@ -4,89 +4,82 @@
 
 # Membot
 
-`membot` indexes local assistant history into a memory store so you
-can search past conversations, related files, and tool calls.
+`membot` automatically indexes your AI history, so future agents can recall past decisions, fixes, files,
+and tool calls through the CLI or MCP.
 
-## Supported agents
+Give it a try and boost your clankers 🤖!
 
-- [x] Cursor: project transcripts, tool calls, and repos referenced by VS-code workspaces
-- [x] Claude Code: project transcripts from the Claude data directory
-- [x] Codex: CLI and Desktop transcripts from the durable Codex data directory
+## Highlights
 
-## Features
+- [x] ClaudeCode, Codex, and Cursor are supported
+- [x] Automatic background indexing on MacOS, including tool calls
+- [x] Query by keyword, agent, time or related files
+- [x] Use as CLI or add it as MCP to any tool
+- [x] Local storage, works fully offline.
 
-- [x] CLI to index, query, and inspect local assistant history from the terminal
-- [x] Boolean full-text search (`AND`, `OR`, parentheses) with project, agent, and time (`--since`) filters
-- [x] JSON or formatted (`--text`) output
-- [x] File context search to find conversations that touched a given file by name or path
-- [x] MCP server exposing search, file context, and project listing over the Model Context Protocol
-- [x] Background indexing via a macOS LaunchAgent (`membot service install/uninstall/status`)
+## Examples
+
+<img src=".github/static/example-01.png" alt="Example 01">
+<img src=".github/static/example-02.png" alt="Example 02">
 
 
 ## Install
 
-Install directly with Go, without cloning the repo:
+Install with Go:
 
 ```bash
 go install github.com/swift1337/membot/cmd/membot@latest
-membot init
+
+# index all chats
+membot index all
+
+# install MacOs background service for auto-indexing
 membot service install
 ```
 
-Or install from a local checkout:
+By default, `membot` creates a SQLite database at `~/.membot/membot.db`.
+
+## Quickstart
+
+Search your memory:
 
 ```sh
-make install
+membot query "sqlite migration" --text
+membot query '(sqlite OR sqlc) AND migration' --project membot --text
+membot query "debug CI" --agent cursor --since 1w --limit 10 --text
 ```
 
-`make install` installs the `membot` CLI with `go install ./cmd/membot`. For a
-local binary instead, run:
+Find conversations that touched a file:
 
 ```sh
-make build
-./bin/membot --help
+membot query files internal/mcp/tools.go --project acme --text
 ```
 
-By default, `membot` creates and migrates its SQLite database at
-`~/.membot/membot.db`. Use `--db /path/to/membot.db` to override it.
+List projects and index stats:
 
-On macOS, `membot service install` installs a LaunchAgent that runs
-`membot index all --watch` in the background. Check it with
-`membot service status` and remove it with `membot service uninstall`.
+```sh
+membot query projects --text
+membot index stats
+```
 
-## Index
+Keep the index fresh on macOS:
 
-Index Cursor project transcripts from the default Cursor projects directory:
+```sh
+membot service install
+membot service status
+```
+
+## CLI Examples
+
+Index one source:
 
 ```sh
 membot index cursor
-```
-
-Index Claude Code project transcripts from the default Claude data directory:
-
-```sh
 membot index claude
-```
-
-Index Codex transcripts from the default Codex data directory:
-
-```sh
 membot index codex
 ```
 
-Index every supported local assistant source:
-
-```sh
-membot index all
-```
-
-The Cursor indexer records both transcript workspaces and repos referenced by
-`.code-workspace` files. Workspace folders can appear with `0 chats` when Cursor
-has no transcripts directly under that workspace, but related chats are still
-counted when tool working directories or file mentions point inside that repo.
-
-The per-agent index commands use their default roots. To index custom roots,
-use `membot index all` with the source-specific root flags:
+Index custom roots:
 
 ```sh
 membot index all \
@@ -95,45 +88,12 @@ membot index all \
   --codex-root ~/.codex
 ```
 
-Rebuild the database from scratch:
+Rebuild from scratch:
 
 ```sh
 membot index cursor --reindex
-```
-
-Check what has been indexed:
-
-```sh
-membot index stats
-membot query projects
-```
-
-## Query
-
-Show formatted terminal output:
-
-```sh
-membot query "sqlite migration" --text
-```
-
-Use `AND`, `OR`, and parentheses for boolean searches:
-
-```sh
-membot query '(sqlite OR sqlc) AND migration' --text
-```
-
-Limit results to a project and recent history:
-
-```sh
-membot query "tool calls" --project membot --since 1w --limit 10 --text
-```
-
-Filter results to one indexed assistant agent:
-
-```sh
-membot query "workflow" --agent claude --text
-membot query "project context" --agent codex --text
-membot query files workflow.go --agent cursor --project sandbox --text
+membot index claude
+membot index codex
 ```
 
 Return JSON for scripts:
@@ -142,41 +102,17 @@ Return JSON for scripts:
 membot query "cursor transcripts"
 ```
 
-Search terms are matched against indexed conversation messages with prefix
-full-text search. Adjacent terms are combined with `AND`; use uppercase `OR` for
-alternatives and parentheses for grouping. Results may include related files and
-tool calls linked to matching messages. Tool call `arguments` are decoded as JSON
-objects or arrays when possible, with non-JSON values returned as strings.
-
-Find conversations that touched a specific file:
+Use aliases when you are moving fast:
 
 ```sh
-membot query files cmd_localnet.sh --project sandbox --text
-membot query files internal/mcp/tools.go --project membot
+membot q "release notes" --text
+membot query f README.md --project membot --text
 ```
-
-File context search matches indexed file paths and basenames from code citations,
-inline paths, and tool calls (read, write, patch, glob, grep). Use `--project`
-when searching common filenames. A project filter matches conversations stored
-under that project as well as conversations that touched files or tool working
-directories inside the project's canonical path.
 
 ## MCP
 
-Run membot as an MCP server so Cursor (or any MCP client) can search indexed
-history without shelling out to the CLI:
-
-```sh
-membot mcp
-```
-
-The server speaks MCP over stdin/stdout and exits when the client disconnects.
-Use `--db` to point at a non-default database, same as other commands.
-
-### Cursor setup
-
-After `make install`, add this to your Cursor MCP config
-(`~/.cursor/mcp.json` or project `.cursor/mcp.json`):
+Run `membot` as an MCP server so ant MCP clients can search indexed
+history without shelling out to the CLI.
 
 ```json
 {
@@ -189,19 +125,30 @@ After `make install`, add this to your Cursor MCP config
 }
 ```
 
-If `membot` is not on your `PATH`, use the full path to the binary instead
-(for example, the output of `go env GOPATH` plus `/bin/membot`).
+Then index transcripts first:
 
-Index transcripts first (`membot index all`, or the per-agent source you need);
-the MCP server is read-only and serves whatever is already in the database.
+```sh
+membot index all
+```
 
-### Tools
+Available MCP tools:
 
-| Tool                  | Description                                                                                                                                                                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search`              | Full-text search over indexed conversation messages. Args: `query` (required; supports `AND`, `OR`, and parentheses like `(sqlite OR sqlc) AND migration`), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `since`, `limit`. Same as `membot query`. |
-| `search_file_context` | Find conversations linked to a file by filename or path. Args: `filename_or_path` (required), optional `project`, `agent` (`cursor`, `claude`, or `codex`), `limit`. Same as `membot query files`.                                                                  |
-| `list_projects`       | List indexed projects with conversation counts. Use names/slugs/paths as `project` filters. Same as `membot query projects`.                                                                                                                                        |
+- `search`: full-text search over indexed assistant messages.
+- `search_file_context`: find conversations linked to a filename or path.
+- `list_projects`: list indexed projects for project filters.
+
+The MCP server speaks over stdin/stdout and is read-only. Use `--db` to point it
+at a non-default database.
+
+## Notes
+
+- Query terms use prefix full-text search. Adjacent terms are combined with
+  `AND`; use uppercase `OR` and parentheses for grouping.
+- File context search matches indexed code citations, inline paths, at-path
+  references, and tool file operations.
+- Cursor indexing also records repos referenced by `.code-workspace` files.
+- `membot service install` creates a macOS LaunchAgent that runs
+  `membot index all --watch`.
 
 ## Development
 
