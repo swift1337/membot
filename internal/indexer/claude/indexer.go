@@ -193,6 +193,9 @@ func discover(root string) ([]projectDir, []transcriptFile, Result, error) {
 	projectsRoot := filepath.Join(root, "projects")
 	entries, err := os.ReadDir(projectsRoot)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, Result{}, nil
+		}
 		return nil, nil, Result{}, fmt.Errorf("read Claude projects root %s: %w", projectsRoot, err)
 	}
 
@@ -305,7 +308,7 @@ func indexTranscript(
 	if err != nil {
 		return false, 0, 0, err
 	}
-	if err == nil && sourceFileUnchanged(existing, info, hash) {
+	if sourceFileUnchanged(existing, info, hash) {
 		return false, 0, 0, nil
 	}
 

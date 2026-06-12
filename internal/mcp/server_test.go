@@ -85,7 +85,7 @@ func TestMCPServerTools(t *testing.T) {
 	fileCtxRes, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
 		Name: "search_file_context",
 		Arguments: map[string]any{
-			"filename_or_path": "cmd_localnet.sh",
+			"filename_or_path": "server.sh",
 			"limit":            5,
 		},
 	})
@@ -103,8 +103,8 @@ func TestMCPServerTools(t *testing.T) {
 	if fileCtxOut.Result == nil {
 		t.Fatal("search_file_context result is nil, want empty slice")
 	}
-	if fileCtxOut.Query != "cmd_localnet.sh" {
-		t.Fatalf("query = %q, want cmd_localnet.sh", fileCtxOut.Query)
+	if fileCtxOut.Query != "server.sh" {
+		t.Fatalf("query = %q, want server.sh", fileCtxOut.Query)
 	}
 }
 

@@ -15,7 +15,7 @@ func TestRenderProjectsText(t *testing.T) {
 		{
 			ProjectSlug: "Users-me-membot",
 			ProjectName: "membot",
-			ProjectDir:  "/Users/me/membot",
+			ProjectDir:  "/Users/example/membot",
 			Chats:       2,
 		},
 	})
@@ -24,7 +24,7 @@ func TestRenderProjectsText(t *testing.T) {
 		"1 project",
 		"- membot (Users-me-membot)",
 		"2 chats",
-		"/Users/me/membot",
+		"/Users/example/membot",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("RenderProjectsText() = %q, want to contain %q", got, want)

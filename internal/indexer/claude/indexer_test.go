@@ -13,7 +13,7 @@ import (
 func TestParseLineExtractsClaudeMessage(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"type":"user","message":{"role":"user","content":"please inspect ` + "`internal/db/db.go`" + `"},"timestamp":"2026-05-29T15:39:12.847Z","cwd":"/Users/me/proj"}`)
+	raw := []byte(`{"type":"user","message":{"role":"user","content":"please inspect ` + "`internal/db/db.go`" + `"},"timestamp":"2026-05-29T15:39:12.847Z","cwd":"/Users/example/project"}`)
 	line, ok, err := parseLine(raw, 1)
 	if err != nil {
 		t.Fatalf("parseLine() error = %v", err)
@@ -31,7 +31,7 @@ func TestParseLineExtractsClaudeMessage(t *testing.T) {
 	if line.Text() != "please inspect `internal/db/db.go`" {
 		t.Fatalf("line.Text() = %q", line.Text())
 	}
-	if line.Cwd != "/Users/me/proj" {
+	if line.Cwd != "/Users/example/project" {
 		t.Fatalf("line.Cwd = %q", line.Cwd)
 	}
 }
@@ -60,8 +60,8 @@ func TestIndexClaudeTranscript(t *testing.T) {
 
 	transcriptPath := filepath.Join(projectDir, "session-1.jsonl")
 	transcript := `{"type":"mode","mode":"normal","sessionId":"session-1"}
-{"type":"user","message":{"role":"user","content":"Please inspect @src/main.go and ` + "`internal/db/db.go`" + `"},"uuid":"u1","timestamp":"2026-05-29T15:39:12.847Z","cwd":"/Users/me/proj","sessionId":"session-1"}
-{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I'll check it."},{"type":"tool_use","name":"Bash","input":{"command":"go test ./..."}}]},"uuid":"a1","timestamp":"2026-05-29T15:39:13.000Z","cwd":"/Users/me/proj","sessionId":"session-1"}
+{"type":"user","message":{"role":"user","content":"Please inspect @src/main.go and ` + "`internal/db/db.go`" + `"},"uuid":"u1","timestamp":"2026-05-29T15:39:12.847Z","cwd":"/Users/example/project","sessionId":"session-1"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I'll check it."},{"type":"tool_use","name":"Bash","input":{"command":"go test ./..."}}]},"uuid":"a1","timestamp":"2026-05-29T15:39:13.000Z","cwd":"/Users/example/project","sessionId":"session-1"}
 `
 	if err := os.WriteFile(transcriptPath, []byte(transcript), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -116,8 +116,30 @@ func TestIndexClaudeTranscript(t *testing.T) {
 	if len(toolCalls) != 1 || toolCalls[0].ToolName != "Bash" {
 		t.Fatalf("toolCalls = %#v", toolCalls)
 	}
-	if !toolCalls[0].WorkingDirectory.Valid || toolCalls[0].WorkingDirectory.String != "/Users/me/proj" {
+	if !toolCalls[0].WorkingDirectory.Valid || toolCalls[0].WorkingDirectory.String != "/Users/example/project" {
 		t.Fatalf("tool working dir = %#v", toolCalls[0].WorkingDirectory)
+	}
+}
+
+func TestIndexClaudeMissingProjectsIsOptional(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	root := t.TempDir()
+	st, err := openTestStore(ctx, filepath.Join(t.TempDir(), "membot.db"))
+	if err != nil {
+		t.Fatalf("openTestStore() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = st.Close()
+	})
+
+	result, err := Index(ctx, st, Options{Root: root})
+	if err != nil {
+		t.Fatalf("Index() error = %v", err)
+	}
+	if result != (Result{}) {
+		t.Fatalf("Index() result = %#v, want empty result", result)
 	}
 }
 

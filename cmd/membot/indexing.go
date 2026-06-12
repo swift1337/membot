@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -136,6 +137,9 @@ func runIndexAll(cmd *cobra.Command, args []string) error {
 		Claude: indexer.ClaudeOptions{Root: runtimeConfig.Indexing.ClaudeRoot},
 		Cursor: indexer.CursorOptions{Root: runtimeConfig.Indexing.CursorRoot},
 	}
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "Found: %s\n", formatFoundSources(indexer.FoundSourceNames(opts))); err != nil {
+		return err
+	}
 	if !runtimeConfig.Indexing.Watch {
 		result, err := indexer.IndexAll(cmd.Context(), db, opts)
 		if err != nil {
@@ -152,6 +156,13 @@ func runIndexAll(cmd *cobra.Command, args []string) error {
 	}, func(run indexer.WatchRun) {
 		_ = encoder.Encode(run)
 	})
+}
+
+func formatFoundSources(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ")
 }
 
 func runIndexStats(cmd *cobra.Command, args []string) error {

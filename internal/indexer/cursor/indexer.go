@@ -24,11 +24,12 @@ import (
 
 const (
 	sourceKind    = "cursor"
-	parserVersion = "cursor-jsonl-v5"
+	parserVersion = "cursor-jsonl-v6"
 )
 
 var (
 	timestampTagPattern = regexp.MustCompile(`(?s)<timestamp>\s*([^<]+?)\s*</timestamp>`)
+	userQueryTagPattern = regexp.MustCompile(`(?s)<user_query>\s*(.*?)\s*</user_query>`)
 	codeRefPattern      = regexp.MustCompile("(?m)^```(\\d+):(\\d+):([^\\n`]+)")
 	inlineCodePattern   = regexp.MustCompile("`([^`\\n]+)`")
 	atPathPattern       = regexp.MustCompile(`@([A-Za-z0-9_./~:-]+)`)
@@ -160,6 +161,9 @@ func Index(ctx context.Context, st *store.Store, opts Options) (Result, error) {
 func discover(root string) ([]projectDir, []transcriptFile, Result, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, Result{}, nil
+		}
 		return nil, nil, Result{}, fmt.Errorf("read Cursor projects root %s: %w", root, err)
 	}
 
@@ -493,7 +497,7 @@ func indexTranscript(
 	if err != nil {
 		return false, 0, 0, err
 	}
-	if err == nil && sourceFileUnchanged(existing, info, hash) {
+	if sourceFileUnchanged(existing, info, hash) {
 		return false, 0, 0, nil
 	}
 
@@ -847,6 +851,9 @@ func parseLine(raw []byte, lineNumber int64) (parsedLine, error) {
 		return parsedLine{}, err
 	}
 
+	createdAt := createdAtFromLine(line, blocks)
+	blocks = cleanCursorTextBlocks(blocks)
+
 	role := line.Role
 	if role == "" {
 		role = "unknown"
@@ -854,10 +861,23 @@ func parseLine(raw []byte, lineNumber int64) (parsedLine, error) {
 	return parsedLine{
 		LineNumber: lineNumber,
 		Role:       role,
-		CreatedAt:  createdAtFromLine(line, blocks),
+		CreatedAt:  createdAt,
 		Raw:        line.Raw,
 		Blocks:     blocks,
 	}, nil
+}
+
+func cleanCursorTextBlocks(blocks []contentBlock) []contentBlock {
+	for i := range blocks {
+		blocks[i].Text = cleanCursorText(blocks[i].Text)
+	}
+	return blocks
+}
+
+func cleanCursorText(value string) string {
+	value = timestampTagPattern.ReplaceAllString(value, "")
+	value = userQueryTagPattern.ReplaceAllString(value, "$1")
+	return strings.TrimSpace(value)
 }
 
 func createdAtFromLine(line transcriptLine, blocks []contentBlock) string {

@@ -32,6 +32,56 @@ func TestParseLineExtractsTimestampFromTextBlock(t *testing.T) {
 	}
 }
 
+func TestParseLineCleansCursorWrapperTags(t *testing.T) {
+	t.Parallel()
+
+	line, err := parseLine([]byte(`{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Tuesday, May 26, 2026, 10:57 PM (UTC+2)</timestamp>\n<user_query>\n@example-app/service/src/server.sh:47-61 Please use the public service endpoint here.\n</user_query>"}]}}`), 1)
+	if err != nil {
+		t.Fatalf("parseLine() error = %v", err)
+	}
+	const want = "@example-app/service/src/server.sh:47-61 Please use the public service endpoint here."
+	if got := line.Text(); got != want {
+		t.Fatalf("line.Text() = %q, want %q", got, want)
+	}
+	if got := line.Blocks[0].Text; got != want {
+		t.Fatalf("block text = %q, want %q", got, want)
+	}
+}
+
+func TestTitleFromLinesUsesCleanedUserQuery(t *testing.T) {
+	t.Parallel()
+
+	line, err := parseLine([]byte(`{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Thursday, May 21, 2026, 3:34 PM (UTC+2)</timestamp> <user_query>hello from cursor</user_query>"}]}}`), 1)
+	if err != nil {
+		t.Fatalf("parseLine() error = %v", err)
+	}
+	title := titleFromLines([]parsedLine{line})
+	if !title.Valid || title.String != "hello from cursor" {
+		t.Fatalf("titleFromLines() = %#v, want hello from cursor", title)
+	}
+}
+
+func TestIndexCursorMissingRootIsOptional(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	st, err := openTestStore(ctx, filepath.Join(t.TempDir(), "membot.db"))
+	if err != nil {
+		t.Fatalf("openTestStore() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = st.Close()
+	})
+
+	result, err := Index(ctx, st, Options{Root: filepath.Join(t.TempDir(), "missing")})
+	if err != nil {
+		t.Fatalf("Index() error = %v", err)
+	}
+	if result != (Result{}) {
+		t.Fatalf("Index() result = %#v, want empty result", result)
+	}
+}
+
 func TestConversationTimesFallsBackToSourceMtime(t *testing.T) {
 	t.Parallel()
 
@@ -49,19 +99,19 @@ func TestExtractApplyPatchFiles(t *testing.T) {
 	t.Parallel()
 
 	patch := `*** Begin Patch
-*** Update File: /Users/me/proj/foo.go
+*** Update File: /Users/example/project/foo.go
 @@
 +line
-*** Add File: /Users/me/proj/bar.go
+*** Add File: /Users/example/project/bar.go
 +new
-*** Delete File: /Users/me/proj/old.go
+*** Delete File: /Users/example/project/old.go
 *** End Patch`
 
 	got := extractApplyPatchFiles(patch)
 	want := []string{
-		"/Users/me/proj/foo.go",
-		"/Users/me/proj/bar.go",
-		"/Users/me/proj/old.go",
+		"/Users/example/project/foo.go",
+		"/Users/example/project/bar.go",
+		"/Users/example/project/old.go",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("extractApplyPatchFiles() = %#v, want %#v", got, want)
@@ -88,22 +138,22 @@ func TestProjectsFromWorkspaceFile(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	workspaceDir := filepath.Join(root, "workspaces", "sandbox")
-	sandboxRepo := filepath.Join(root, "sandbox")
-	ledgerRepo := filepath.Join(root, "sandbox-ledger")
+	workspaceDir := filepath.Join(root, "workspaces", "sample-workspace")
+	appRepo := filepath.Join(root, "sample-app")
+	libRepo := filepath.Join(root, "sample-lib")
 	missingRepo := filepath.Join(root, "missing")
-	for _, dir := range []string{workspaceDir, sandboxRepo, ledgerRepo} {
+	for _, dir := range []string{workspaceDir, appRepo, libRepo} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("MkdirAll(%q): %v", dir, err)
 		}
 	}
 
-	workspacePath := filepath.Join(workspaceDir, "sandbox.code-workspace")
+	workspacePath := filepath.Join(workspaceDir, "sample.code-workspace")
 	workspaceJSON := `{
 		"folders": [
-			{"path": "../../sandbox"},
-			{"path": "../../sandbox-ledger", "name": "ledger"},
-			{"path": "../../sandbox-ledger"},
+			{"path": "../../sample-app"},
+			{"path": "../../sample-lib", "name": "library"},
+			{"path": "../../sample-lib"},
 			{"path": "../../missing"},
 			// VS Code accepts JSONC in workspace files.
 		],
@@ -127,8 +177,8 @@ func TestProjectsFromWorkspaceFile(t *testing.T) {
 		path string
 		name string
 	}{
-		{path: sandboxRepo, name: "sandbox"},
-		{path: ledgerRepo, name: "ledger"},
+		{path: appRepo, name: "sample-app"},
+		{path: libRepo, name: "library"},
 	}
 	for i := range want {
 		if !got[i].CanonicalPath.Valid || got[i].CanonicalPath.String != want[i].path {
@@ -149,7 +199,7 @@ func TestProjectsFromWorkspaceFile(t *testing.T) {
 func TestExtractToolFileMentionsShell(t *testing.T) {
 	t.Parallel()
 
-	input := []byte(`{"command":"cast send 0xabc --rpc-url http://localhost:8545","working_directory":"/Users/me/evm"}`)
+	input := []byte(`{"command":"curl http://localhost:8080/health","working_directory":"/Users/example/project"}`)
 	if got := extractToolFileMentions("Shell", input); len(got) != 0 {
 		t.Fatalf("Shell should not produce file mentions, got %#v", got)
 	}
@@ -158,9 +208,9 @@ func TestExtractToolFileMentionsShell(t *testing.T) {
 func TestExtractToolFileMentionsReadFile(t *testing.T) {
 	t.Parallel()
 
-	input := []byte(`{"path":"/Users/me/proj/main.go","offset":1,"limit":50}`)
+	input := []byte(`{"path":"/Users/example/project/main.go","offset":1,"limit":50}`)
 	got := extractToolFileMentions("ReadFile", input)
-	if len(got) != 1 || got[0].Path != "/Users/me/proj/main.go" || got[0].Kind != "tool_read" {
+	if len(got) != 1 || got[0].Path != "/Users/example/project/main.go" || got[0].Kind != "tool_read" {
 		t.Fatalf("extractToolFileMentions() = %#v", got)
 	}
 }
@@ -168,13 +218,13 @@ func TestExtractToolFileMentionsReadFile(t *testing.T) {
 func TestExtractFileMentions(t *testing.T) {
 	t.Parallel()
 
-	text := "Updated `ibc/localnet/docker-compose.yml` and @sandbox/.cursor/evm-evm-localnet-refactor-plan.md.\n\n```247:265:/Users/dmitry/Code/sandbox/ibc/src/cmd_localnet.sh\nensure_attestor_keystore\n```"
+	text := "Updated `service/config/app.yml` and @example-app/.cursor/refactor-plan.md.\n\n```247:265:/Users/example/Code/sample-app/service/src/server.sh\nstart_service\n```"
 	got := extractFileMentions(text)
 
 	want := []fileMention{
-		{Path: "/Users/dmitry/Code/sandbox/ibc/src/cmd_localnet.sh", Kind: "code_ref", LineStart: 247, LineEnd: 265},
-		{Path: "ibc/localnet/docker-compose.yml", Kind: "inline_code"},
-		{Path: "sandbox/.cursor/evm-evm-localnet-refactor-plan.md", Kind: "at_ref"},
+		{Path: "/Users/example/Code/sample-app/service/src/server.sh", Kind: "code_ref", LineStart: 247, LineEnd: 265},
+		{Path: "service/config/app.yml", Kind: "inline_code"},
+		{Path: "example-app/.cursor/refactor-plan.md", Kind: "at_ref"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("extractFileMentions() len = %d, want %d: %#v", len(got), len(want), got)

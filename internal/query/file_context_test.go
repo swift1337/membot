@@ -25,10 +25,10 @@ func TestSearchFileContext(t *testing.T) {
 	now := "2026-05-26T20:57:00Z"
 
 	project, err := q.UpsertProject(ctx, generateddb.UpsertProjectParams{
-		Slug: "Users-me-sandbox",
-		Name: sql.NullString{String: "sandbox", Valid: true},
+		Slug: "Users-example-sample-app",
+		Name: sql.NullString{String: "sample-app", Valid: true},
 		CanonicalPath: sql.NullString{
-			String: "/Users/me/sandbox",
+			String: "/Users/example/sample-app",
 			Valid:  true,
 		},
 		FirstSeenAt: sql.NullString{String: now, Valid: true},
@@ -50,7 +50,7 @@ func TestSearchFileContext(t *testing.T) {
 		SourceID:   source.ID,
 		ProjectID:  sql.NullInt64{Int64: project.ID, Valid: true},
 		ExternalID: "conv-1",
-		Title:      sql.NullString{String: "Localnet script work", Valid: true},
+		Title:      sql.NullString{String: "Service script work", Valid: true},
 		StartedAt:  sql.NullString{String: now, Valid: true},
 		RawPath:    "/tmp/cursor/agent-transcripts/conv-1/conv-1.jsonl",
 	})
@@ -63,7 +63,7 @@ func TestSearchFileContext(t *testing.T) {
 		Role:           "assistant",
 		Seq:            1,
 		CreatedAt:      sql.NullString{String: now, Valid: true},
-		Text:           sql.NullString{String: "Updated cmd_localnet.sh", Valid: true},
+		Text:           sql.NullString{String: "Updated server.sh", Valid: true},
 		RawJson:        `{}`,
 		ContentHash:    "hash-1",
 	})
@@ -73,9 +73,9 @@ func TestSearchFileContext(t *testing.T) {
 
 	file, err := q.UpsertFile(ctx, generateddb.UpsertFileParams{
 		ProjectID:      sql.NullInt64{Int64: project.ID, Valid: true},
-		Path:           "/Users/me/sandbox/ibc/src/cmd_localnet.sh",
-		NormalizedPath: sql.NullString{String: "/Users/me/sandbox/ibc/src/cmd_localnet.sh", Valid: true},
-		Basename:       sql.NullString{String: "cmd_localnet.sh", Valid: true},
+		Path:           "/Users/example/sample-app/service/src/server.sh",
+		NormalizedPath: sql.NullString{String: "/Users/example/sample-app/service/src/server.sh", Valid: true},
+		Basename:       sql.NullString{String: "server.sh", Valid: true},
 		Kind:           sql.NullString{String: "code_ref", Valid: true},
 	})
 	if err != nil {
@@ -86,14 +86,14 @@ func TestSearchFileContext(t *testing.T) {
 		FileID:      file.ID,
 		MessageID:   sql.NullInt64{Int64: message.ID, Valid: true},
 		MentionKind: "code_ref",
-		Snippet:     sql.NullString{String: "ensure_attestor_keystore", Valid: true},
+		Snippet:     sql.NullString{String: "start_service", Valid: true},
 	}); err != nil {
 		t.Fatalf("CreateFileMention() error = %v", err)
 	}
 
 	resp, err := SearchFileContext(ctx, st, FileContextOptions{
-		FilenameOrPath: "cmd_localnet.sh",
-		Project:        "sandbox",
+		FilenameOrPath: "server.sh",
+		Project:        "sample-app",
 		Limit:          10,
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func TestSearchFileContext(t *testing.T) {
 	if item.ConversationID != conversation.ID {
 		t.Fatalf("conversation_id = %d, want %d", item.ConversationID, conversation.ID)
 	}
-	if item.Path != "/Users/me/sandbox/ibc/src/cmd_localnet.sh" {
+	if item.Path != "/Users/example/sample-app/service/src/server.sh" {
 		t.Fatalf("path = %q", item.Path)
 	}
 	if item.Mentions != 1 {
@@ -140,8 +140,8 @@ func TestSearchFileContextFiltersByAgent(t *testing.T) {
 
 	file, err := q.UpsertFile(ctx, generateddb.UpsertFileParams{
 		ProjectID:      sql.NullInt64{Int64: project.ID, Valid: true},
-		Path:           "/Users/me/sandbox/internal/workflow/createasset/workflow.go",
-		NormalizedPath: sql.NullString{String: "/Users/me/sandbox/internal/workflow/createasset/workflow.go", Valid: true},
+		Path:           "/Users/example/sample-app/internal/workflow/createitem/workflow.go",
+		NormalizedPath: sql.NullString{String: "/Users/example/sample-app/internal/workflow/createitem/workflow.go", Valid: true},
 		Basename:       sql.NullString{String: "workflow.go", Valid: true},
 		Kind:           sql.NullString{String: "tool", Valid: true},
 	})

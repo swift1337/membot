@@ -39,12 +39,34 @@ func TestParseLineIndexesUsefulMessagesOnly(t *testing.T) {
 		t.Fatalf("developer line should be skipped: %#v", dev)
 	}
 
-	meta, lineMeta, ok, err := parseLine([]byte(`{"type":"session_meta","payload":{"cwd":"/Users/me/proj","base_instructions":"do not index this"}}`), 3)
+	meta, lineMeta, ok, err := parseLine([]byte(`{"type":"session_meta","payload":{"cwd":"/Users/example/project","base_instructions":"do not index this"}}`), 3)
 	if err != nil {
 		t.Fatalf("parseLine(session_meta) error = %v", err)
 	}
-	if ok || meta.Text() != "" || lineMeta.Cwd != "/Users/me/proj" {
+	if ok || meta.Text() != "" || lineMeta.Cwd != "/Users/example/project" {
 		t.Fatalf("session_meta line/meta = %#v %#v ok=%v", meta, lineMeta, ok)
+	}
+}
+
+func TestIndexCodexMissingSessionsIsOptional(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	root := t.TempDir()
+	st, err := openTestStore(ctx, filepath.Join(t.TempDir(), "membot.db"))
+	if err != nil {
+		t.Fatalf("openTestStore() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = st.Close()
+	})
+
+	result, err := Index(ctx, st, Options{Root: root})
+	if err != nil {
+		t.Fatalf("Index() error = %v", err)
+	}
+	if result != (Result{}) {
+		t.Fatalf("Index() result = %#v, want empty result", result)
 	}
 }
 
@@ -57,15 +79,15 @@ func TestIndexCodexTranscriptWithStateMetadata(t *testing.T) {
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	createStateDB(t, filepath.Join(root, "state_5.sqlite"), "thread-state", "State Title", "/Users/me/state-proj")
+	createStateDB(t, filepath.Join(root, "state_5.sqlite"), "thread-state", "State Title", "/Users/example/state-project")
 
 	transcriptPath := filepath.Join(sessionDir, "rollout-2026-06-04T10-00-00Z-thread-state.jsonl")
-	transcript := `{"type":"session_meta","payload":{"thread_id":"thread-state","cwd":"/Users/me/jsonl-proj","base_instructions":"never searchable"}}
+	transcript := `{"type":"session_meta","payload":{"thread_id":"thread-state","cwd":"/Users/example/jsonl-project","base_instructions":"never searchable"}}
 {"type":"event_msg","timestamp":"2026-06-04T10:00:00Z","payload":{"type":"user_message","message":"Please inspect codex phrase"}}
 {"type":"event_msg","timestamp":"2026-06-04T10:00:01Z","payload":{"type":"agent_message","message":"Mirrored response"}}
 {"type":"response_item","timestamp":"2026-06-04T10:00:01Z","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Single assistant answer"}]}}
 {"type":"response_item","timestamp":"2026-06-04T10:00:02Z","item":{"type":"message","role":"system","content":"runtime noise"}}
-{"type":"response_item","timestamp":"2026-06-04T10:00:03Z","item":{"type":"function_call","name":"shell","arguments":{"cmd":"go test ./..."},"working_directory":"/Users/me/state-proj"}}
+{"type":"response_item","timestamp":"2026-06-04T10:00:03Z","item":{"type":"function_call","name":"shell","arguments":{"cmd":"go test ./..."},"working_directory":"/Users/example/state-project"}}
 `
 	if err := os.WriteFile(transcriptPath, []byte(transcript), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -106,7 +128,7 @@ func TestIndexCodexTranscriptWithStateMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetProject() error = %v", err)
 	}
-	if !project.CanonicalPath.Valid || project.CanonicalPath.String != "/Users/me/state-proj" {
+	if !project.CanonicalPath.Valid || project.CanonicalPath.String != "/Users/example/state-project" {
 		t.Fatalf("project path = %#v", project.CanonicalPath)
 	}
 
@@ -131,7 +153,7 @@ func TestIndexCodexTranscriptWithStateMetadata(t *testing.T) {
 	if len(toolCalls) != 1 || toolCalls[0].ToolName != "shell" {
 		t.Fatalf("toolCalls = %#v", toolCalls)
 	}
-	if !toolCalls[0].WorkingDirectory.Valid || toolCalls[0].WorkingDirectory.String != "/Users/me/state-proj" {
+	if !toolCalls[0].WorkingDirectory.Valid || toolCalls[0].WorkingDirectory.String != "/Users/example/state-project" {
 		t.Fatalf("tool working dir = %#v", toolCalls[0].WorkingDirectory)
 	}
 }
@@ -145,12 +167,12 @@ func TestIndexCodexTranscriptFallsBackToSessionIndexAndJSONLMetadata(t *testing.
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "session_index.jsonl"), []byte(`{"thread_id":"thread-index","thread_name":"Indexed Title","cwd":"/Users/me/index-proj"}`+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "session_index.jsonl"), []byte(`{"thread_id":"thread-index","thread_name":"Indexed Title","cwd":"/Users/example/index-project"}`+"\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(session_index) error = %v", err)
 	}
 
 	transcriptPath := filepath.Join(sessionDir, "rollout-2026-06-04T10-00-00Z-thread-index.jsonl")
-	transcript := `{"type":"turn_context","payload":{"cwd":"/Users/me/jsonl-proj"}}
+	transcript := `{"type":"turn_context","payload":{"cwd":"/Users/example/jsonl-project"}}
 {"type":"response_item","timestamp":"2026-06-04T10:00:01Z","item":{"type":"message","role":"user","content":"Desktop-originated prompt"}}
 `
 	if err := os.WriteFile(transcriptPath, []byte(transcript), 0o644); err != nil {
@@ -186,7 +208,7 @@ func TestIndexCodexTranscriptFallsBackToSessionIndexAndJSONLMetadata(t *testing.
 	if err != nil {
 		t.Fatalf("GetProject() error = %v", err)
 	}
-	if project.CanonicalPath.String != "/Users/me/index-proj" {
+	if project.CanonicalPath.String != "/Users/example/index-project" {
 		t.Fatalf("project path = %#v", project.CanonicalPath)
 	}
 }

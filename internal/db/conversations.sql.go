@@ -525,13 +525,13 @@ INSERT INTO messages (
     conversation_id, source_file_id, role, seq, created_at, text, raw_json, raw_line, content_hash
 )
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(source_file_id, raw_line) DO UPDATE SET
-    conversation_id = excluded.conversation_id,
+ON CONFLICT(conversation_id, seq) DO UPDATE SET
+    source_file_id = excluded.source_file_id,
     role = excluded.role,
-    seq = excluded.seq,
     created_at = excluded.created_at,
     text = excluded.text,
     raw_json = excluded.raw_json,
+    raw_line = excluded.raw_line,
     content_hash = excluded.content_hash
 RETURNING id, conversation_id, source_file_id, role, seq, created_at, text, raw_json, raw_line, content_hash
 `

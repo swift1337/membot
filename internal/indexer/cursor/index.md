@@ -175,8 +175,10 @@ User messages often wrap the actual prompt in tags:
 {"type":"text","text":"<user_query>\nhello\n</user_query>"}
 ```
 
-The indexer stores the full block text as-is. Search matches the tag content
-too. Tags like `<timestamp>` are also used for timestamp extraction.
+The indexer stores the human-readable content only: `<user_query>` is unwrapped
+to its inner text, and `<timestamp>` tags are removed after their value is used
+for timestamp extraction. Raw JSON is still preserved on the message and block
+records for provenance.
 
 ## How membot indexes transcripts
 

@@ -13,21 +13,21 @@ func TestBuildFTSQuery(t *testing.T) {
 }
 
 func TestBuildFTSQuerySplitsHyphenatedIdentifiers(t *testing.T) {
-	got, err := buildFTSQuery("attestor-sandbox")
+	got, err := buildFTSQuery("sample-service")
 	if err != nil {
 		t.Fatalf("buildFTSQuery() error = %v", err)
 	}
-	if got != "(attestor* AND sandbox*)" {
+	if got != "(sample* AND service*)" {
 		t.Fatalf("buildFTSQuery() = %q", got)
 	}
 }
 
 func TestBuildFTSQuerySplitsPaths(t *testing.T) {
-	got, err := buildFTSQuery("ibc/localnet/docker-compose.yml")
+	got, err := buildFTSQuery("service/config/app.yml")
 	if err != nil {
 		t.Fatalf("buildFTSQuery() error = %v", err)
 	}
-	if got != "(ibc* AND localnet* AND docker* AND compose* AND yml*)" {
+	if got != "(service* AND config* AND app* AND yml*)" {
 		t.Fatalf("buildFTSQuery() = %q", got)
 	}
 }
@@ -73,11 +73,11 @@ func TestBuildFTSQueryPrecedence(t *testing.T) {
 }
 
 func TestBuildFTSQueryHyphenInGroup(t *testing.T) {
-	got, err := buildFTSQuery("attestor-sandbox OR docker")
+	got, err := buildFTSQuery("sample-service OR config")
 	if err != nil {
 		t.Fatalf("buildFTSQuery() error = %v", err)
 	}
-	if got != "(attestor* AND sandbox*) OR docker*" {
+	if got != "(sample* AND service*) OR config*" {
 		t.Fatalf("buildFTSQuery() = %q", got)
 	}
 }

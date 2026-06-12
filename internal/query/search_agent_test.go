@@ -55,9 +55,9 @@ func createTestProject(t *testing.T, ctx context.Context, q *generateddb.Queries
 	t.Helper()
 
 	project, err := q.UpsertProject(ctx, generateddb.UpsertProjectParams{
-		Slug:          "Users-me-sandbox",
-		Name:          sql.NullString{String: "sandbox", Valid: true},
-		CanonicalPath: sql.NullString{String: "/Users/me/sandbox", Valid: true},
+		Slug:          "Users-example-sample-app",
+		Name:          sql.NullString{String: "sample-app", Valid: true},
+		CanonicalPath: sql.NullString{String: "/Users/example/sample-app", Valid: true},
 		FirstSeenAt:   sql.NullString{String: "2026-05-26T20:57:00Z", Valid: true},
 		LastSeenAt:    sql.NullString{String: "2026-05-26T20:57:00Z", Valid: true},
 	})

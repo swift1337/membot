@@ -194,6 +194,9 @@ func discover(root string) ([]transcriptFile, Result, error) {
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, Result{}, nil
+		}
 		return nil, Result{}, fmt.Errorf("discover Codex sessions in %s: %w", sessionsRoot, err)
 	}
 	sort.Slice(transcripts, func(i, j int) bool {
@@ -238,7 +241,7 @@ func indexTranscript(
 	if err != nil {
 		return false, 0, 0, "", err
 	}
-	if err == nil && sourceFileUnchanged(existing, info, hash) {
+	if sourceFileUnchanged(existing, info, hash) {
 		return false, 0, 0, "", nil
 	}
 
