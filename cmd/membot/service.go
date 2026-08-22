@@ -5,36 +5,36 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/swift1337/membot/internal/system/macos"
+	"github.com/swift1337/membot/internal/system"
 )
 
 const defaultServiceInterval = 120 * time.Second
 
 var cmdService = &cobra.Command{
 	Use:   "service",
-	Short: "Manage the macOS background indexing service",
+	Short: "Manage the background indexing service",
 }
 
 var cmdServiceInstall = &cobra.Command{
 	Use:   "install",
-	Short: "Install and load the macOS LaunchAgent",
+	Short: "Install and start the background indexing service",
 	RunE:  runServiceInstall,
 }
 
 var cmdServiceUninstall = &cobra.Command{
 	Use:   "uninstall",
-	Short: "Unload and remove the macOS LaunchAgent",
+	Short: "Stop and remove the background indexing service",
 	RunE:  runServiceUninstall,
 }
 
 var cmdServiceStatus = &cobra.Command{
 	Use:   "status",
-	Short: "Show macOS LaunchAgent status",
+	Short: "Show background indexing service status",
 	RunE:  runServiceStatus,
 }
 
 func runServiceInstall(cmd *cobra.Command, args []string) error {
-	status, err := macos.Install(macos.InstallOptions{
+	status, err := system.Install(system.InstallOptions{
 		MembotPath: runtimeConfig.Service.MembotPath,
 		DBPath:     runtimeConfig.DBPath,
 		Interval:   runtimeConfig.Service.Interval,
@@ -46,7 +46,7 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 }
 
 func runServiceUninstall(cmd *cobra.Command, args []string) error {
-	status, err := macos.Uninstall()
+	status, err := system.Uninstall()
 	if err != nil {
 		return err
 	}
@@ -54,11 +54,7 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 }
 
 func runServiceStatus(cmd *cobra.Command, args []string) error {
-	plistPath, err := macos.DefaultLaunchAgentPath()
-	if err != nil {
-		return err
-	}
-	status, err := macos.StatusForPlist(plistPath)
+	status, err := system.ServiceStatus()
 	if err != nil {
 		return err
 	}

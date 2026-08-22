@@ -33,7 +33,7 @@ go install github.com/swift1337/membot/cmd/membot@latest
 # index all chats
 membot index all
 
-# install MacOs background service for auto-indexing
+# install the background service for auto-indexing
 membot service install
 ```
 
@@ -62,7 +62,7 @@ membot query projects --text
 membot index stats
 ```
 
-Keep the index fresh on macOS:
+Keep the index fresh on macOS or Debian/Ubuntu Linux:
 
 ```sh
 membot service install
@@ -147,8 +147,8 @@ at a non-default database.
 - File context search matches indexed code citations, inline paths, at-path
   references, and tool file operations.
 - Cursor indexing also records repos referenced by `.code-workspace` files.
-- `membot service install` creates a macOS LaunchAgent that runs
-  `membot index all --watch`.
+- `membot service install` runs `membot index all --watch` using a macOS
+  LaunchAgent or a per-user systemd service on Debian/Ubuntu-family Linux.
 
 ## Development
 
